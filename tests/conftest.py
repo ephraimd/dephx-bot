@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import pytest
@@ -29,6 +30,7 @@ def config(tmp_path: Path) -> AppConfig:
         env_api_keys={},
         os_name="macOS",
         shell_name="/bin/sh",
+        command_env=dict(os.environ),
     )
 
 

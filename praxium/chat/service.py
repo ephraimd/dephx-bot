@@ -62,13 +62,21 @@ class ChatService:
     """The single open chat: its project, session, running turn and pending questions."""
 
     def __init__(
-        self, *, settings: AppSettingsStore, skills: SkillLibrary, client_for: ClientFor, os_name: str, shell_name: str
+        self,
+        *,
+        settings: AppSettingsStore,
+        skills: SkillLibrary,
+        client_for: ClientFor,
+        os_name: str,
+        shell_name: str,
+        command_env: dict[str, str],
     ) -> None:
         self.settings = settings
         self.skills = skills
         self.client_for = client_for
         self.os_name = os_name
         self.shell_name = shell_name
+        self.command_env = command_env
         self.project: Project | None = None
         self._session: ChatSession | None = None
         self._limit_for_next_chat: int | None = None
@@ -181,7 +189,7 @@ class ChatService:
             raise ApiError(400, "missing_api_key", f"Add your {spec.label} API key in Settings.")
         tools = [
             *make_file_tools(ProjectPaths(project.root)),
-            make_shell_tool(project),
+            make_shell_tool(project, self.command_env),
             make_skill_tool(self.skills),
         ]
         prompt = build_system_prompt(library=self.skills, os_name=self.os_name, shell_name=self.shell_name)

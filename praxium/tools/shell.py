@@ -4,6 +4,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import IO, Any
@@ -34,10 +35,12 @@ class CommandResult:
     cancelled: bool
 
 
-async def run_shell(command: str, cwd: Path, *, timeout: float, cancel: asyncio.Event) -> CommandResult:
+async def run_shell(
+    command: str, cwd: Path, *, timeout: float, cancel: asyncio.Event, env: Mapping[str, str] | None = None
+) -> CommandResult:
     # Output goes to a temp file, not a pipe: a chatty process can fill a pipe and block forever.
     with tempfile.TemporaryFile() as output:
-        process = _start(command, cwd, output)
+        process = _start(command, cwd, output, env)
         deadline = asyncio.get_running_loop().time() + timeout
         timed_out = cancelled = False
         while process.poll() is None:
@@ -66,7 +69,7 @@ def kill_tree(process: "subprocess.Popen[bytes]") -> None:
             pass
 
 
-def make_shell_tool(project: Project) -> Tool:
+def make_shell_tool(project: Project, env: Mapping[str, str] | None = None) -> Tool:
     async def run_command(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
         command = string_arg(args, "command").strip()
         if not command:
@@ -79,7 +82,7 @@ def make_shell_tool(project: Project) -> Tool:
             if answer.decision == Decision.ALWAYS:
                 project.allow_always(command)
 
-        result = await run_shell(command, project.root, timeout=COMMAND_TIMEOUT_SECONDS, cancel=ctx.cancel)
+        result = await run_shell(command, project.root, timeout=COMMAND_TIMEOUT_SECONDS, cancel=ctx.cancel, env=env)
         if result.cancelled:
             status = "The user stopped the command."
         elif result.timed_out:
@@ -103,16 +106,16 @@ def make_shell_tool(project: Project) -> Tool:
     )
 
 
-def _start(command: str, cwd: Path, output: IO[bytes]) -> "subprocess.Popen[bytes]":
+def _start(command: str, cwd: Path, output: IO[bytes], env: Mapping[str, str] | None) -> "subprocess.Popen[bytes]":
     # A new process group (POSIX) or console group (Windows) lets kill_tree reach grandchildren.
     if sys.platform == "win32":
         return subprocess.Popen(
             command, shell=True, cwd=cwd, stdin=subprocess.DEVNULL, stdout=output,
-            stderr=subprocess.STDOUT, creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
+            stderr=subprocess.STDOUT, creationflags=subprocess.CREATE_NEW_PROCESS_GROUP, env=env,
         )
     return subprocess.Popen(
         command, shell=True, cwd=cwd, stdin=subprocess.DEVNULL, stdout=output,
-        stderr=subprocess.STDOUT, start_new_session=True,
+        stderr=subprocess.STDOUT, start_new_session=True, env=env,
     )
 
 

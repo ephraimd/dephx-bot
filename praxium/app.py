@@ -49,6 +49,7 @@ def build_api(
         client_for=client_for or ClientPool().get,
         os_name=config.os_name,
         shell_name=config.shell_name,
+        command_env=config.command_env,
     )
     app.include_router(settings_router(settings))
     app.include_router(chat_router(chat, pick_folder=pick_folder, open_url=open_url))

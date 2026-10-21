@@ -150,3 +150,19 @@ async def test_always_allow_persists_then_skips_approval(tmp_path: Path) -> None
     assert second.asked == []
     saved = json.loads((tmp_path / ".praxium" / "settings.json").read_text())
     assert saved["allowed_commands"] == [command]
+
+
+async def test_commands_get_the_environment_they_are_given(tmp_path: Path) -> None:
+    env = {**os.environ, "PRAXIUM_MARK": "clean"}
+    code = 'import os; print(os.environ.get("PRAXIUM_MARK"))'
+    result = await run_shell(f"{PY} -c '{code}'" if sys.platform != "win32" else f'{PY} -c "{code}"',
+                             tmp_path, timeout=10, cancel=asyncio.Event(), env=env)
+    assert result.output.strip() == "clean"
+
+
+async def test_shell_tool_passes_its_environment(tmp_path: Path) -> None:
+    tool = make_shell_tool(open_project(str(tmp_path)), env={**os.environ, "PRAXIUM_MARK": "from-tool"})
+    code = 'import os; print(os.environ.get("PRAXIUM_MARK"))'
+    command = f"{PY} -c '{code}'" if sys.platform != "win32" else f'{PY} -c "{code}"'
+    result = await tool.run({"command": command}, context(Approver(Decision.RUN_ONCE)))
+    assert result.output.endswith("from-tool\n")
