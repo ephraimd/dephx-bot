@@ -1,0 +1,127 @@
+import asyncio
+import os
+import signal
+import subprocess
+import sys
+import tempfile
+from dataclasses import dataclass
+from pathlib import Path
+from typing import IO, Any
+
+from praxium.agent.approvals import ApprovalRequest, Decision
+from praxium.settings.project import Project
+from praxium.tools import (
+    HEAD_CHARS,
+    MAX_TOOL_OUTPUT_CHARS,
+    RUN_COMMAND,
+    TAIL_CHARS,
+    Tool,
+    ToolContext,
+    ToolError,
+    ToolResult,
+    string_arg,
+)
+
+COMMAND_TIMEOUT_SECONDS = 120
+POLL_SECONDS = 0.2
+
+
+@dataclass(frozen=True)
+class CommandResult:
+    exit_code: int | None
+    output: str
+    timed_out: bool
+    cancelled: bool
+
+
+async def run_shell(command: str, cwd: Path, *, timeout: float, cancel: asyncio.Event) -> CommandResult:
+    # Output goes to a temp file, not a pipe: a chatty process can fill a pipe and block forever.
+    with tempfile.TemporaryFile() as output:
+        process = _start(command, cwd, output)
+        deadline = asyncio.get_running_loop().time() + timeout
+        timed_out = cancelled = False
+        while process.poll() is None:
+            if cancel.is_set():
+                cancelled = True
+            elif asyncio.get_running_loop().time() > deadline:
+                timed_out = True
+            if timed_out or cancelled:
+                kill_tree(process)
+                process.wait()
+                break
+            await asyncio.sleep(POLL_SECONDS)
+
+        exit_code = None if timed_out or cancelled else process.returncode
+        return CommandResult(exit_code, _head_and_tail(output), timed_out, cancelled)
+
+
+def kill_tree(process: "subprocess.Popen[bytes]") -> None:
+    """Kill the shell and everything it started, so a dev server cannot outlive Stop."""
+    if sys.platform == "win32":
+        subprocess.run(["taskkill", "/F", "/T", "/PID", str(process.pid)], capture_output=True)
+    else:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+
+
+def make_shell_tool(project: Project) -> Tool:
+    async def run_command(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
+        command = string_arg(args, "command").strip()
+        if not command:
+            raise ToolError("The command is empty.")
+
+        if not project.is_allowed(command):
+            answer = await ctx.request_approval(ApprovalRequest("command", command))
+            if answer.decision == Decision.DENY:
+                return ToolResult("The user denied this command.", ok=False)
+            if answer.decision == Decision.ALWAYS:
+                project.allow_always(command)
+
+        result = await run_shell(command, project.root, timeout=COMMAND_TIMEOUT_SECONDS, cancel=ctx.cancel)
+        if result.cancelled:
+            status = "stopped by the user"
+        elif result.timed_out:
+            status = f"timed out after {COMMAND_TIMEOUT_SECONDS} seconds"
+        else:
+            status = f"exit code {result.exit_code}"
+        passed = result.exit_code == 0
+        return ToolResult(f"{status}\n{result.output}", ok=passed, check_succeeded=passed)
+
+    return Tool(
+        RUN_COMMAND,
+        "Run a shell command in the project folder. The user approves each command. "
+        f"Commands are stopped after {COMMAND_TIMEOUT_SECONDS} seconds, so do not start servers that keep running.",
+        {
+            "type": "object",
+            "properties": {"command": {"type": "string", "description": "The exact command line to run."}},
+            "required": ["command"],
+        },
+        run_command,
+    )
+
+
+def _start(command: str, cwd: Path, output: IO[bytes]) -> "subprocess.Popen[bytes]":
+    # A new process group (POSIX) or console group (Windows) lets kill_tree reach grandchildren.
+    if sys.platform == "win32":
+        return subprocess.Popen(
+            command, shell=True, cwd=cwd, stdin=subprocess.DEVNULL, stdout=output,
+            stderr=subprocess.STDOUT, creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
+        )
+    return subprocess.Popen(
+        command, shell=True, cwd=cwd, stdin=subprocess.DEVNULL, stdout=output,
+        stderr=subprocess.STDOUT, start_new_session=True,
+    )
+
+
+def _head_and_tail(output: IO[bytes]) -> str:
+    """Read only the start and end of the output, so megabytes of logs never reach memory."""
+    size = output.seek(0, os.SEEK_END)
+    output.seek(0)
+    if size <= MAX_TOOL_OUTPUT_CHARS:
+        return output.read().decode("utf-8", errors="replace")
+    head = output.read(HEAD_CHARS).decode("utf-8", errors="replace")
+    output.seek(size - TAIL_CHARS)
+    tail = output.read().decode("utf-8", errors="replace")
+    return f"{head}\n[... {size - HEAD_CHARS - TAIL_CHARS} bytes elided ...]\n{tail}"
