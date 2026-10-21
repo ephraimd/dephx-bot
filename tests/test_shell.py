@@ -125,7 +125,8 @@ async def test_run_once_runs_and_reports_check(tmp_path: Path) -> None:
     result = await tool.run({"command": f'{PY} -c "print(1)"'}, context(Approver(Decision.RUN_ONCE)))
     assert result.ok
     assert result.check_succeeded is True
-    assert result.output.startswith("exit code 0")
+    # Labelled, so the model cannot mistake our status line for the program's output.
+    assert result.output == "Command exited with code 0.\n--- output ---\n1\n"
 
 
 async def test_failing_command_is_a_failed_check(tmp_path: Path) -> None:

@@ -27,8 +27,9 @@ PHASE_TOOLS: dict[Phase, frozenset[str]] = {
 PHASE_GOALS: dict[Phase, str] = {
     Phase.EVALUATE: "Understand the request and the existing code. Leave with a summary of what exists "
     "and what the change touches.",
-    Phase.IDEATE: "Weigh options, recommend one and write a short plan. The user must approve the plan "
-    "before you can build.",
+    Phase.IDEATE: "Weigh options, recommend one and write a short plan. To get the plan approved, call "
+    "advance_phase with to=build and the plan as the summary; the app shows it to the user with Approve "
+    "and Request changes buttons. Do not ask for approval in plain text.",
     Phase.BUILD: "Make the change.",
     Phase.TEST: "Prove it works by running checks. Finish verified only after a check passes after your "
     "last file change, or finish unverified and say why no check could run.",

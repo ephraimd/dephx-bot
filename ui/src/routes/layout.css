@@ -127,3 +127,52 @@
 		@apply font-sans;
 	}
 }
+
+/* Model replies rendered from markdown (see src/lib/markdown.ts). */
+@layer components {
+	.prose-chat {
+		@apply text-sm leading-relaxed break-words;
+	}
+	.prose-chat > * + * {
+		@apply mt-3;
+	}
+	.prose-chat h1,
+	.prose-chat h2,
+	.prose-chat h3 {
+		@apply font-semibold;
+	}
+	.prose-chat h1 {
+		@apply text-base;
+	}
+	.prose-chat ul {
+		@apply list-disc pl-5;
+	}
+	.prose-chat ol {
+		@apply list-decimal pl-5;
+	}
+	.prose-chat li + li {
+		@apply mt-1;
+	}
+	.prose-chat a {
+		@apply underline underline-offset-2;
+	}
+	.prose-chat :not(pre) > code {
+		@apply rounded bg-muted px-1 py-0.5 font-mono text-[0.85em];
+	}
+	.prose-chat pre {
+		@apply overflow-x-auto rounded-md bg-muted p-3 font-mono text-xs;
+	}
+	.prose-chat table {
+		@apply block overflow-x-auto text-xs;
+	}
+	.prose-chat th,
+	.prose-chat td {
+		@apply border px-2 py-1 text-left;
+	}
+	.prose-chat img {
+		@apply max-w-full rounded-md border;
+	}
+	.prose-chat .remote-image {
+		@apply rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground hover:bg-muted;
+	}
+}

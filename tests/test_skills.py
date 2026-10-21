@@ -82,3 +82,8 @@ def test_phase_note_lists_only_allowed_tools() -> None:
 
 def test_phase_note_in_done_asks_for_the_report() -> None:
     assert "final report" in phase_note(Phase.DONE)
+
+
+def test_prompt_says_how_to_ask_for_plan_approval(library: SkillLibrary) -> None:
+    prompt = build_system_prompt(library=library, os_name="macOS", shell_name="/bin/sh")
+    assert "Do not ask for approval in plain text" in prompt

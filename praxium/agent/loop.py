@@ -126,6 +126,9 @@ class ChatSession:
                 try:
                     result = await self._handle_call(call, context, emit)
                 except ApprovalCancelled:
+                    await emit(
+                        ToolFinished(call_id=call.id, ok=False, output=NOT_RUN, added_tokens=estimate_tokens(NOT_RUN))
+                    )
                     # Every tool call needs a result, or the provider rejects the next request.
                     for skipped in reply.tool_calls[index:]:
                         self.messages.append(Message("tool", NOT_RUN, tool_call_id=skipped.id))
@@ -243,6 +246,8 @@ def _summarise(arguments: str) -> str:
     except json.JSONDecodeError:
         return arguments[:SUMMARY_CHARS]
     if isinstance(args, dict):
+        if not args:
+            return ""
         for key in ("command", "path", "pattern", "name", "to"):
             if isinstance(args.get(key), str):
                 return str(args[key])[:SUMMARY_CHARS]

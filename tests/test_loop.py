@@ -13,6 +13,7 @@ from praxium.agent.events import (
     PhaseChanged,
     TokenDelta,
     ToolFinished,
+    ToolStarted,
     TurnFinished,
     TurnStatus,
     UsageReported,
@@ -225,6 +226,9 @@ async def test_stop_during_approval_finishes_stopped_and_answers_every_call(tmp_
     turn.stop_on_approval = True
 
     assert await turn.run("run it") is TurnStatus.STOPPED
+    started = {e.call_id for e in turn.of(ToolStarted)}
+    finished = {e.call_id for e in turn.of(ToolFinished)}
+    assert started == finished  # the UI must not show a stopped tool as still running
 
     # The history must stay valid for the next request: every tool call has a result.
     await Turn(session).run("carry on")
@@ -239,3 +243,10 @@ async def test_tool_result_reports_added_tokens(tmp_path: Path) -> None:
     turn = Turn(session)
     await turn.run("read")
     assert turn.of(ToolFinished)[0].added_tokens > 0
+
+
+async def test_tool_without_arguments_has_an_empty_summary(tmp_path: Path) -> None:
+    session, _ = session_for(tmp_path, [call("list_files", {}), text("ok")])
+    turn = Turn(session)
+    await turn.run("look")
+    assert turn.of(ToolStarted)[0].summary == ""

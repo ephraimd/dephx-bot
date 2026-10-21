@@ -81,13 +81,14 @@ def make_shell_tool(project: Project) -> Tool:
 
         result = await run_shell(command, project.root, timeout=COMMAND_TIMEOUT_SECONDS, cancel=ctx.cancel)
         if result.cancelled:
-            status = "stopped by the user"
+            status = "The user stopped the command."
         elif result.timed_out:
-            status = f"timed out after {COMMAND_TIMEOUT_SECONDS} seconds"
+            status = f"The command was stopped after {COMMAND_TIMEOUT_SECONDS} seconds."
         else:
-            status = f"exit code {result.exit_code}"
+            status = f"Command exited with code {result.exit_code}."
         passed = result.exit_code == 0
-        return ToolResult(f"{status}\n{result.output}", ok=passed, check_succeeded=passed)
+        # Labelled: a bare "exit code 0" first line was read by the model as the program's own output.
+        return ToolResult(f"{status}\n--- output ---\n{result.output}", ok=passed, check_succeeded=passed)
 
     return Tool(
         RUN_COMMAND,

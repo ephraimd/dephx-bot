@@ -95,6 +95,10 @@ def _pick_folder(window: webview.Window) -> str | None:
 
 def _bind_localhost(port: int) -> socket.socket:
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    # Lets a restart reuse the dev port while old connections finish closing. Not on Windows,
+    # where the same option would let another program take over the port.
+    if sys.platform != "win32":
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.bind(("127.0.0.1", port))
     return sock
 
