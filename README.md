@@ -18,11 +18,11 @@ Around those two ideas sit the parts any serious harness needs: a token limit pe
 
 dephx-bot works with any model served through an OpenAI-compatible chat API. Choose Custom in Settings and enter the API address, the model name, its context window and its largest reply. A couple of providers are already filled in so that you only need to paste a key.
 
-The project was inspired by [Praxiom AI](https://www.praxiomai.io) and was built to test what the Praxiom model can do on real agentic work: long tool-calling loops, a hidden provider prompt on every request, a 64,000-token window and prepaid billing. The reports in `docs/reports/` record what that testing found, from OpenAI compatibility to speed and cost.
+The project was inspired by [Praxiom AI](https://www.praxiomai.io) and was built to test what the Praxiom model can do on real agentic work: long tool-calling loops, a hidden provider prompt on every request, a 64,000-token window and prepaid billing. [REPORT.md](REPORT.md) records what that testing found.
 
 ## What testing Praxiom showed
 
-The `bench/` folder holds a small benchmark: coding tasks with hidden tests the model never sees, and a meter that adds up the token usage each provider reports. [Report 05](docs/reports/05-praxiom-vs-deepseek.md) uses it to compare Praxiom with DeepSeek on speed, cost and ability. In short, Praxiom solved every task at the first attempt, started answering in under a second and used far fewer output tokens, while its hidden system prompt and the lack of a discount for repeated prompts made agent loops cost more than they need to. The earlier reports cover its OpenAI compatibility and its image models.
+[REPORT.md](REPORT.md) is the full write-up: how dephx-bot is designed, what integrating Praxiom involved, how the model behaves, and benchmark results against DeepSeek on speed, cost and coding ability. In short, Praxiom passed every OpenAI compatibility check and every coding task at the first attempt, started answering in under a second and used far fewer output tokens, while its hidden system prompt and the lack of a discount for repeated prompts made agent loops cost more than they need to.
 
 ## What you need
 
@@ -182,7 +182,7 @@ uv run mypy --strict dephx_bot tests && uv run pytest
 cd ui && npm run check && npm run test
 ```
 
-The `docs/` folder explains how the project was designed and built. `docs/tutorials/` has a short guide to each part of the code, written in the order the parts were built. `docs/reports/` records what was found while testing the Praxiom API, what the end-to-end testing of the app showed, including the bugs that real runs uncovered, and the benchmark against Aider. `bench/` holds the benchmark itself, so anyone can rerun it with their own keys.
+The `docs/` folder explains how the project was designed and built. `docs/tutorials/` has a short guide to each part of the code, written in the order the parts were built. [REPORT.md](REPORT.md) covers the design decisions, the testing of Praxiom and the bugs that real runs uncovered. `learning/01-malaria-agent/` is the small agent that came before dephx-bot and was used for the first Praxiom tests.
 
 ## Troubleshooting
 

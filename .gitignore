@@ -8,5 +8,6 @@ ui/.svelte-kit/
 test-results/
 .claude/
 private/
-bench/work/
-bench/.venv-tools/
+# Working notes and raw benchmark data; the finished results are in REPORT.md.
+docs/reports/
+bench/

@@ -60,7 +60,7 @@ class ProviderSpec:
 MAX_HISTORY_BUDGET = 120_000
 CUSTOM_PROVIDER_ID = "custom"
 
-# Values from docs/reports/01 and 02.
+# Values from Praxiom's API documentation, checked against the live API (REPORT.md, section 3).
 PROVIDERS: dict[str, ProviderSpec] = {
     "praxiom": ProviderSpec(
         id="praxiom",

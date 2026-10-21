@@ -20,7 +20,7 @@ The key is read from the environment, falling back to `.config/.vault` at the pr
 PROVIDER=praxiom uv run python main.py
 ```
 
-`compat_probe.py` checks a provider feature by feature against the OpenAI API behaviour; its findings are in `docs/reports/02-praxiom-openai-compatibility.md`.
+`compat_probe.py` checks a provider feature by feature against the OpenAI API behaviour; its findings are in section 3 of [`REPORT.md`](../../REPORT.md).
 
 ## The files, in reading order
 
@@ -57,7 +57,7 @@ Note `arguments` is a JSON **string**, not an object. The model wrote it, so it 
 
 ## Concept 3: memory is just the message list
 
-There is no hidden state. `self.messages` is the agent's entire memory, and the full list is re-sent on every step. That is why every token you append costs you again on every later call, and why it matters so much against Praxiom's 64K window (see `docs/reports/01-praxiom-cloud-api-observations.md`).
+There is no hidden state. `self.messages` is the agent's entire memory, and the full list is re-sent on every step. That is why every token you append costs you again on every later call, and why it matters so much against Praxiom's 64K window (see section 3.2 of [`REPORT.md`](../../REPORT.md)).
 
 ## Concept 4: tool errors are feedback, not crashes
 
