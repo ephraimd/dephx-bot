@@ -5,22 +5,36 @@ import socket
 import sys
 import threading
 import time
+import webbrowser
+from collections.abc import Callable
 
 import uvicorn
 import webview
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
+from praxium.chat.routes import chat_router
+from praxium.chat.service import ChatService, ClientFor
 from praxium.config import DEV_PORT, AppConfig, load_config
 from praxium.errors import install_error_handler
+from praxium.providers import ClientPool
 from praxium.security import LaunchGuard, new_launch_token
 from praxium.settings.app_settings import AppSettingsStore
 from praxium.settings.routes import settings_router
+from praxium.tools.skills import SkillLibrary
 
 SERVER_START_TIMEOUT_SECONDS = 10.0
 
 
-def build_api(config: AppConfig, *, token: str, host: str) -> FastAPI:
+def build_api(
+    config: AppConfig,
+    *,
+    token: str,
+    host: str,
+    client_for: ClientFor | None = None,
+    pick_folder: Callable[[], str | None] | None = None,
+    open_url: Callable[[str], bool] = webbrowser.open,
+) -> FastAPI:
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
     install_error_handler(app)
 
@@ -29,7 +43,15 @@ def build_api(config: AppConfig, *, token: str, host: str) -> FastAPI:
         return {"ok": True}
 
     settings = AppSettingsStore(config.settings_path, config.env_api_keys)
+    chat = ChatService(
+        settings=settings,
+        skills=SkillLibrary(config.skills_dir),
+        client_for=client_for or ClientPool().get,
+        os_name=config.os_name,
+        shell_name=config.shell_name,
+    )
     app.include_router(settings_router(settings))
+    app.include_router(chat_router(chat, pick_folder=pick_folder, open_url=open_url))
 
     # Mounted last: "/" would otherwise swallow every /api route.
     app.mount("/", StaticFiles(directory=config.static_dir, html=True), name="ui")
@@ -42,23 +64,33 @@ def main() -> None:
     sock = _bind_localhost(DEV_PORT if config.dev else 0)
     port = sock.getsockname()[1]
     token = new_launch_token()
-    app = build_api(config, token=token, host=f"127.0.0.1:{port}")
-    server = uvicorn.Server(uvicorn.Config(app, log_level="warning"))
+    host = f"127.0.0.1:{port}"
     # The fragment is never sent to the server, so the token stays out of request logs.
-    url = f"http://127.0.0.1:{port}/#token={token}"
+    url = f"http://{host}/#token={token}"
 
     if config.dev:
+        server = uvicorn.Server(uvicorn.Config(build_api(config, token=token, host=host), log_level="warning"))
         print(f"Praxium dev server: {url}", flush=True)
         server.run(sockets=[sock])
         return
 
+    # Created before the server so the folder picker can use it; it opens at webview.start().
+    window = webview.create_window("Praxium", url, width=1200, height=800, min_size=(720, 560))
+    if window is None:
+        raise RuntimeError("pywebview could not create a window.")
+    app = build_api(config, token=token, host=host, pick_folder=lambda: _pick_folder(window))
+    server = uvicorn.Server(uvicorn.Config(app, log_level="warning"))
     thread = threading.Thread(target=server.run, kwargs={"sockets": [sock]}, daemon=True)
     thread.start()
     _wait_until_started(server)
-    webview.create_window("Praxium", url, width=1200, height=800)
     webview.start()
     server.should_exit = True
     thread.join(timeout=5)
+
+
+def _pick_folder(window: webview.Window) -> str | None:
+    chosen = window.create_file_dialog(webview.FileDialog.FOLDER)
+    return chosen[0] if chosen else None
 
 
 def _bind_localhost(port: int) -> socket.socket:

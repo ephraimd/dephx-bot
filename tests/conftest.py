@@ -4,7 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from praxium.app import build_api
-from praxium.config import AppConfig
+from praxium.config import PACKAGE_DIR, AppConfig
 
 TOKEN = "t0k"
 HOST = "127.0.0.1:9999"
@@ -25,7 +25,7 @@ def config(tmp_path: Path) -> AppConfig:
         dev=True,
         settings_path=tmp_path / "config" / "settings.json",
         static_dir=static_dir,
-        skills_dir=tmp_path / "skills",
+        skills_dir=PACKAGE_DIR / "skills" / "senior-dephx",
         env_api_keys={},
         os_name="macOS",
         shell_name="/bin/sh",
