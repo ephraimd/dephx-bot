@@ -6,10 +6,10 @@ from pathlib import Path
 
 from platformdirs import user_config_path
 
+from praxium.providers import PROVIDERS
+
 PACKAGE_DIR = Path(__file__).resolve().parent
 DEV_PORT = 8765
-# Replaced by the provider contract's env_key values once providers exist (Task 2).
-API_KEY_ENV_VARS = ("PRAXIUM_API_KEY", "DEEPSEEK_API_KEY")
 
 
 @dataclass(frozen=True)
@@ -38,7 +38,7 @@ def load_config(argv: Sequence[str], env: Mapping[str, str]) -> AppConfig:
         settings_path=user_config_path("praxium") / "settings.json",
         static_dir=PACKAGE_DIR / "static",
         skills_dir=PACKAGE_DIR / "skills" / "senior-dephx",
-        env_api_keys={name: env[name] for name in API_KEY_ENV_VARS if env.get(name)},
+        env_api_keys={p.env_key: env[p.env_key] for p in PROVIDERS.values() if env.get(p.env_key)},
         os_name={"Darwin": "macOS"}.get(system, system),
         shell_name="cmd.exe" if system == "Windows" else "/bin/sh",
     )
