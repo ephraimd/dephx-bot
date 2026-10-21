@@ -4,6 +4,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import unicodedata
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -25,6 +26,8 @@ from praxium.tools import (
 
 COMMAND_TIMEOUT_SECONDS = 120
 POLL_SECONDS = 0.2
+# Memory is bounded by reading only the head and tail; this bounds the disk.
+MAX_OUTPUT_BYTES = 50_000_000
 
 
 @dataclass(frozen=True)
@@ -33,6 +36,7 @@ class CommandResult:
     output: str
     timed_out: bool
     cancelled: bool
+    output_capped: bool = False
 
 
 async def run_shell(
@@ -42,20 +46,22 @@ async def run_shell(
     with tempfile.TemporaryFile() as output:
         process = _start(command, cwd, output, env)
         deadline = asyncio.get_running_loop().time() + timeout
-        timed_out = cancelled = False
+        timed_out = cancelled = capped = False
         while process.poll() is None:
             if cancel.is_set():
                 cancelled = True
             elif asyncio.get_running_loop().time() > deadline:
                 timed_out = True
-            if timed_out or cancelled:
+            elif os.fstat(output.fileno()).st_size > MAX_OUTPUT_BYTES:
+                capped = True
+            if timed_out or cancelled or capped:
                 kill_tree(process)
                 process.wait()
                 break
             await asyncio.sleep(POLL_SECONDS)
 
-        exit_code = None if timed_out or cancelled else process.returncode
-        return CommandResult(exit_code, _head_and_tail(output), timed_out, cancelled)
+        exit_code = None if timed_out or cancelled or capped else process.returncode
+        return CommandResult(exit_code, _head_and_tail(output), timed_out, cancelled, capped)
 
 
 def kill_tree(process: "subprocess.Popen[bytes]") -> None:
@@ -74,6 +80,10 @@ def make_shell_tool(project: Project, env: Mapping[str, str] | None = None) -> T
         command = string_arg(args, "command").strip()
         if not command:
             raise ToolError("The command is empty.")
+        hidden = _hidden_characters(command)
+        if hidden:
+            # The user approves what they see; invisible or direction-changing characters would hide what runs.
+            raise ToolError(f"The command contains hidden characters ({hidden}). Rewrite it with plain text.")
 
         if not project.is_allowed(command):
             answer = await ctx.request_approval(ApprovalRequest("command", command))
@@ -87,6 +97,8 @@ def make_shell_tool(project: Project, env: Mapping[str, str] | None = None) -> T
             status = "The user stopped the command."
         elif result.timed_out:
             status = f"The command was stopped after {COMMAND_TIMEOUT_SECONDS} seconds."
+        elif result.output_capped:
+            status = f"The command was stopped after printing more than {MAX_OUTPUT_BYTES // 1_000_000} MB."
         else:
             status = f"Command exited with code {result.exit_code}."
         passed = result.exit_code == 0
@@ -117,6 +129,12 @@ def _start(command: str, cwd: Path, output: IO[bytes], env: Mapping[str, str] | 
         command, shell=True, cwd=cwd, stdin=subprocess.DEVNULL, stdout=output,
         stderr=subprocess.STDOUT, start_new_session=True, env=env,
     )
+
+
+def _hidden_characters(command: str) -> str:
+    """Control and format characters (bidi overrides, zero-width spaces), named as U+XXXX."""
+    found = {ch for ch in command if unicodedata.category(ch) in ("Cc", "Cf") and ch not in "\t\n\r"}
+    return ", ".join(f"U+{ord(ch):04X}" for ch in sorted(found))
 
 
 def _head_and_tail(output: IO[bytes]) -> str:

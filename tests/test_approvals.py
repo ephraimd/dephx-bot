@@ -85,3 +85,15 @@ async def test_answering_twice_is_rejected() -> None:
     with pytest.raises(ApiError) as error:
         broker.resolve(opened[0], ApprovalAnswer(Decision.DENY))
     assert error.value.code == "unknown_approval"
+
+
+async def test_answer_arriving_after_stop_is_a_clean_refusal() -> None:
+    broker = ApprovalBroker()
+    task, opened = await ask_in_background(broker, ApprovalRequest("command", "pytest"))
+    broker.cancel_all()
+
+    with pytest.raises(ApiError) as error:
+        broker.resolve(opened[0], ApprovalAnswer(Decision.RUN_ONCE))
+    assert error.value.code == "unknown_approval"
+    with pytest.raises(ApprovalCancelled):
+        await task

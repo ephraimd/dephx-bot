@@ -1,5 +1,7 @@
 import asyncio
 import json
+import logging
+from contextlib import aclosing
 from typing import Any
 
 from praxium.agent.approvals import ApprovalAnswer, ApprovalBroker, ApprovalCancelled, ApprovalRequest, Decision
@@ -19,9 +21,21 @@ from praxium.agent.events import (
 )
 from praxium.agent.phases import ADVANCE_PHASE, Phase, PhaseError, PhaseMachine
 from praxium.agent.prompt import phase_note
-from praxium.model import Message, ModelClient, ModelError, ModelReply, TextDelta, ToolCall, ToolSchema, estimate_tokens
+from praxium.model import (
+    Message,
+    ModelClient,
+    ModelError,
+    ModelReply,
+    TextDelta,
+    ToolCall,
+    ToolSchema,
+    Usage,
+    estimate_tokens,
+)
 from praxium.providers import ProviderSpec
 from praxium.tools import Tool, ToolContext, ToolError, ToolResult, cap_output
+
+log = logging.getLogger(__name__)
 
 MAX_STEPS = 40
 SUMMARY_CHARS = 120
@@ -98,10 +112,16 @@ class ChatSession:
                 )
 
             try:
-                reply = await self._call_model(step, request, schemas, emit)
+                reply = await self._call_model(step, request, schemas, emit, cancel)
             except ModelError as error:
                 await emit(ErrorRaised(code=error.code, message=error.message))
                 return TurnStatus.FAILED, error.message
+            if reply is None:
+                # Stopped mid-stream. The provider still bills what it generated, so count an estimate.
+                partial = Usage(self.spec.hidden_prompt_tokens + context_tokens, 0, None, estimated=True)
+                self.ledger.record(partial)
+                await emit(self._usage_event(step, ModelReply("", [], partial), context_tokens))
+                return TurnStatus.STOPPED, "Stopped."
 
             self.ledger.record(reply.usage)
             await emit(self._usage_event(step, reply, context_tokens))
@@ -123,27 +143,40 @@ class ChatSession:
                 continue
 
             for index, call in enumerate(reply.tool_calls):
+                if cancel.is_set():
+                    self._skip(reply.tool_calls[index:])
+                    return TurnStatus.STOPPED, "Stopped."
                 try:
                     result = await self._handle_call(call, context, emit)
                 except ApprovalCancelled:
                     await emit(
                         ToolFinished(call_id=call.id, ok=False, output=NOT_RUN, added_tokens=estimate_tokens(NOT_RUN))
                     )
-                    # Every tool call needs a result, or the provider rejects the next request.
-                    for skipped in reply.tool_calls[index:]:
-                        self.messages.append(Message("tool", NOT_RUN, tool_call_id=skipped.id))
+                    self._skip(reply.tool_calls[index:])
                     return TurnStatus.STOPPED, "Stopped."
                 self.messages.append(Message("tool", result.output, tool_call_id=call.id, pinned=result.pinned))
 
         return TurnStatus.STEP_LIMIT, f"Stopped after {MAX_STEPS} steps without finishing."
 
-    async def _call_model(self, step: int, request: list[Message], schemas: list[ToolSchema], emit: Emit) -> ModelReply:
-        async for item in self.model.stream(request, schemas, self.spec.max_output_tokens):
-            if isinstance(item, TextDelta):
-                await emit(TokenDelta(step=step, text=item.text))
-            else:
-                return item
+    async def _call_model(
+        self, step: int, request: list[Message], schemas: list[ToolSchema], emit: Emit, cancel: asyncio.Event
+    ) -> ModelReply | None:
+        """The model's reply, or None if the user stopped the turn while it was streaming."""
+        # aclosing ends the provider stream at once, which also frees its concurrency slot.
+        async with aclosing(self.model.stream(request, schemas, self.spec.max_output_tokens)) as stream:
+            async for item in stream:
+                if cancel.is_set():
+                    return None
+                if isinstance(item, TextDelta):
+                    await emit(TokenDelta(step=step, text=item.text))
+                else:
+                    return item
         raise ModelError("provider_error", "The model stream ended without a reply.")
+
+    def _skip(self, calls: list[ToolCall]) -> None:
+        # Every tool call needs a result, or the provider rejects the next request.
+        for call in calls:
+            self.messages.append(Message("tool", NOT_RUN, tool_call_id=call.id))
 
     async def _handle_call(self, call: ToolCall, context: ToolContext, emit: Emit) -> ToolResult:
         await emit(ToolStarted(call_id=call.id, name=call.name, summary=_summarise(call.arguments)))
@@ -151,6 +184,12 @@ class ChatSession:
             result = await self._run_call(call, context, emit)
         except ToolError as error:
             result = ToolResult(f"Tool error: {error}", ok=False)
+        except ApprovalCancelled:
+            raise
+        except Exception as error:
+            # A tool bug must not end the turn: the call still needs a result to keep the history valid.
+            log.exception("tool %s failed", call.name)
+            result = ToolResult(f"Tool error: {type(error).__name__}: {error}", ok=False)
 
         if result.wrote_file:
             self.phase.record_write()

@@ -1,13 +1,16 @@
 import asyncio
+import json
 import sys
+from collections.abc import AsyncGenerator, Callable
 from pathlib import Path
-from typing import TypeVar
+from typing import Any, TypeVar
 
 import pytest
 
 from praxium.agent.approvals import ApprovalAnswer, ApprovalBroker, Decision
 from praxium.agent.events import (
     ApprovalRequired,
+    ApprovalResolved,
     ErrorRaised,
     Event,
     PhaseChanged,
@@ -20,9 +23,10 @@ from praxium.agent.events import (
 )
 from praxium.agent.loop import ChatSession
 from praxium.agent.phases import Phase
-from praxium.model import ModelError, ModelReply, Usage
+from praxium.model import Message, ModelError, ModelReply, TextDelta, ToolCall, ToolSchema, Usage
 from praxium.providers import PROVIDERS
 from praxium.settings.project import open_project
+from praxium.tools import Tool, ToolContext, ToolResult
 from praxium.tools.files import ProjectPaths, make_file_tools
 from praxium.tools.shell import make_shell_tool
 from tests.scripted_model import ScriptedModel, call, text
@@ -44,6 +48,7 @@ class Turn:
         self.cancel = asyncio.Event()
         self.events: list[Event] = []
         self.stop_on_approval = False
+        self.stop_after_answer = False
 
     async def emit(self, event: Event) -> None:
         self.events.append(event)
@@ -53,6 +58,8 @@ class Turn:
             else:
                 answer = self.answers.pop(0)
                 asyncio.get_running_loop().call_soon(self.broker.resolve, event.approval_id, answer)
+        if isinstance(event, ApprovalResolved) and self.stop_after_answer:
+            self.stop()
 
     def stop(self) -> None:
         self.cancel.set()
@@ -250,3 +257,77 @@ async def test_tool_without_arguments_has_an_empty_summary(tmp_path: Path) -> No
     turn = Turn(session)
     await turn.run("look")
     assert turn.of(ToolStarted)[0].summary == ""
+
+
+class StopsWhileStreaming:
+    """A model that is stopped partway through its reply, which then asks for tools."""
+
+    def __init__(self, turn_stop: Callable[[], None], reply: ModelReply) -> None:
+        self.turn_stop = turn_stop
+        self.reply = reply
+
+    async def stream(
+        self, messages: list[Message], tools: list[ToolSchema], max_tokens: int
+    ) -> AsyncGenerator[TextDelta | ModelReply, None]:
+        yield TextDelta("I will write the file")
+        self.turn_stop()
+        yield TextDelta(" now.")
+        yield self.reply
+
+
+async def test_stop_during_streaming_runs_no_tools(tmp_path: Path) -> None:
+    session, _ = session_for(tmp_path, [])
+    session.phase.move(Phase.BUILD)
+    turn = Turn(session)
+    reply = ModelReply("", [ToolCall("c1", "write_file", '{"path": "x.py", "content": "x"}')], Usage(10, 5, None, False))
+    session.model = StopsWhileStreaming(turn.stop, reply)
+
+    assert await turn.run("write it") is TurnStatus.STOPPED
+    assert not (tmp_path / "x.py").exists()
+    assert turn.of(ToolStarted) == []
+    assert session.ledger.used > 0  # a stopped stream is still billed, so it still counts
+
+
+async def test_stop_after_a_command_skips_the_rest_of_the_reply(tmp_path: Path) -> None:
+    reply = ModelReply("", [
+        ToolCall("c1", "run_command", json.dumps({"command": PASSING_CHECK})),
+        ToolCall("c2", "write_file", '{"path": "x.py", "content": "x"}'),
+    ], Usage(10, 5, None, False))
+    session, model = session_for(tmp_path, [reply, text("later")])
+    session.phase.move(Phase.BUILD)
+    turn = Turn(session, [ApprovalAnswer(Decision.RUN_ONCE)])
+    turn.stop_after_answer = True
+
+    assert await turn.run("go") is TurnStatus.STOPPED
+    assert not (tmp_path / "x.py").exists()
+    results = {m.tool_call_id for m in session.messages if m.role == "tool"}
+    assert results == {"c1", "c2"}
+
+
+async def test_unexpected_tool_failure_becomes_a_tool_error(tmp_path: Path) -> None:
+    session, model = session_for(
+        tmp_path, [call("write_file", {"path": "sub", "content": "x"}), text("I see"), text("Still building")]
+    )
+    (tmp_path / "sub").mkdir()
+    session.phase.move(Phase.BUILD)
+    turn = Turn(session)
+
+    await turn.run("write")
+
+    finished = turn.of(ToolFinished)[0]
+    assert not finished.ok and finished.output.startswith("Tool error:")
+    assert {c.id for m in session.messages for c in m.tool_calls} == {
+        m.tool_call_id for m in session.messages if m.role == "tool"
+    }
+
+
+async def test_a_crashing_tool_does_not_end_the_turn(tmp_path: Path) -> None:
+    async def explode(_args: dict[str, Any], _ctx: ToolContext) -> ToolResult:
+        raise RuntimeError("disk on fire")
+
+    session, _ = session_for(tmp_path, [call("read_file", {"path": "a.py"}), text("ok")])
+    session.tools["read_file"] = Tool("read_file", "boom", {"type": "object", "properties": {}}, explode)
+    turn = Turn(session)
+
+    assert await turn.run("read") is TurnStatus.WAITING_FOR_USER
+    assert "disk on fire" in turn.of(ToolFinished)[0].output

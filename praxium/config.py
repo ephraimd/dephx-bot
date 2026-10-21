@@ -55,10 +55,24 @@ def command_env(env: Mapping[str, str], *, own_prefix: str, pathsep: str) -> dic
     `python3` and `pip install` would use and change Praxium's environment, not the project's.
     """
     cleaned = dict(env)
-    if cleaned.get("VIRTUAL_ENV") != own_prefix:
+    if not _same_path(cleaned.get("VIRTUAL_ENV", ""), own_prefix):
         return cleaned
     del cleaned["VIRTUAL_ENV"]
-    inside = (own_prefix + "/", own_prefix + "\\")
-    kept = [entry for entry in cleaned.get("PATH", "").split(pathsep) if entry != own_prefix and not entry.startswith(inside)]
+    kept = [entry for entry in cleaned.get("PATH", "").split(pathsep) if not _inside(entry, own_prefix)]
     cleaned["PATH"] = pathsep.join(kept)
     return cleaned
+
+
+def _same_path(a: str, b: str) -> bool:
+    # Symlinks (macOS /tmp) and letter case (Windows C: and c:) make equal paths look different.
+    return bool(a) and (a == b or os.path.normcase(os.path.realpath(a)) == os.path.normcase(os.path.realpath(b)))
+
+
+def _inside(entry: str, prefix: str) -> bool:
+    if not entry:
+        return False
+    if _same_path(entry, prefix) or entry.startswith((prefix + "/", prefix + "\\")):
+        return True
+    real_entry = os.path.normcase(os.path.realpath(entry))
+    real_prefix = os.path.normcase(os.path.realpath(prefix))
+    return real_entry.startswith(real_prefix + os.sep)

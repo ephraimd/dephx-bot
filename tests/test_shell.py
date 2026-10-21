@@ -9,7 +9,7 @@ import pytest
 
 from praxium.agent.approvals import ApprovalAnswer, ApprovalRequest, Decision
 from praxium.settings.project import open_project
-from praxium.tools import ToolContext
+from praxium.tools import ToolContext, ToolError
 from praxium.tools.shell import make_shell_tool, run_shell
 
 pytestmark = pytest.mark.anyio
@@ -166,3 +166,21 @@ async def test_shell_tool_passes_its_environment(tmp_path: Path) -> None:
     command = f"{PY} -c '{code}'" if sys.platform != "win32" else f'{PY} -c "{code}"'
     result = await tool.run({"command": command}, context(Approver(Decision.RUN_ONCE)))
     assert result.output.endswith("from-tool\n")
+
+
+async def test_runaway_output_is_stopped(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("praxium.tools.shell.MAX_OUTPUT_BYTES", 1_000_000)
+    code = script(tmp_path, "yes.py", "import sys\nwhile True:\n    sys.stdout.write('y' * 10000)\n")
+    started = time.monotonic()
+    result = await run_shell(python(code), tmp_path, timeout=60, cancel=asyncio.Event())
+    assert result.output_capped
+    assert time.monotonic() - started < 10
+
+
+@pytest.mark.parametrize("hidden", ["\u202e", "\u200b", "\x1b"])
+async def test_commands_with_hidden_characters_are_refused(tmp_path: Path, hidden: str) -> None:
+    approver = Approver(Decision.RUN_ONCE)
+    tool = make_shell_tool(open_project(str(tmp_path)))
+    with pytest.raises(ToolError, match="hidden"):
+        await tool.run({"command": f"echo safe{hidden}; echo more"}, context(approver))
+    assert approver.asked == []

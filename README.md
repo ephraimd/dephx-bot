@@ -43,7 +43,7 @@ uv run mypy --strict praxium tests && uv run pytest && (cd ui && npm run check &
 
 | What | Where |
 | --- | --- |
-| Provider choice, API keys, default token limit | `~/Library/Application Support/praxium/settings.json` (macOS), `%APPDATA%\praxium\settings.json` (Windows). Environment variables `PRAXIUM_API_KEY` and `DEEPSEEK_API_KEY` override the file. |
+| Provider choice, API keys, default token limit | `~/Library/Application Support/praxium/settings.json` (macOS), `%LOCALAPPDATA%\praxium\praxium\settings.json` (Windows). Environment variables `PRAXIUM_API_KEY` and `DEEPSEEK_API_KEY` override the file. |
 | Commands you allowed for a project | `<project>/.praxium/settings.json`. If a folder already has this file, the app asks you to trust its commands first. |
 
 Chats are not saved between launches.

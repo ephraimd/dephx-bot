@@ -1,5 +1,5 @@
 import asyncio
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from typing import Any, cast
 
@@ -103,7 +103,7 @@ class OpenAICompatibleClient:
 
     async def stream(
         self, messages: list[Message], tools: list[ToolSchema], max_tokens: int
-    ) -> AsyncIterator[TextDelta | ModelReply]:
+    ) -> AsyncGenerator[TextDelta | ModelReply, None]:
         async with self._gate:
             response = await self._open_stream(messages, tools, max_tokens)
             text = ""

@@ -1,7 +1,7 @@
 """The types the agent uses to talk to a model. Provider SDK types stay in providers.py."""
 
 import math
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol
 
@@ -65,6 +65,6 @@ class ModelError(Exception):
 class ModelClient(Protocol):
     def stream(
         self, messages: list[Message], tools: list[ToolSchema], max_tokens: int
-    ) -> AsyncIterator[TextDelta | ModelReply]:
+    ) -> AsyncGenerator[TextDelta | ModelReply, None]:
         """Yield text as it arrives, then exactly one ModelReply."""
         ...

@@ -91,4 +91,6 @@ class PhaseMachine:
             return False
         self.phase = Phase.EVALUATE
         self.verified = None
+        # A check from the previous request must not verify this one.
+        self._last_write = self._events
         return True

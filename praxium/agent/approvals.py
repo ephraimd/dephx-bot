@@ -70,7 +70,8 @@ class ApprovalBroker:
         future.set_result(answer)
 
     def cancel_all(self) -> None:
-        for _, future in self._waiting.values():
+        waiting, self._waiting = self._waiting, {}
+        for _, future in waiting.values():
             if not future.done():
                 future.set_exception(ApprovalCancelled())
 

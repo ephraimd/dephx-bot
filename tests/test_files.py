@@ -189,3 +189,52 @@ def test_cap_output_keeps_head_and_tail() -> None:
     assert capped.endswith("T" * 9_000)
     assert "elided" in capped
     assert cap_output("short") == "short"
+
+
+async def test_edit_keeps_windows_line_endings(tools: dict[str, Tool], project: Path) -> None:
+    (project / "crlf.txt").write_bytes(b"one\r\ntwo\r\nthree\r\n")
+    await run(tools, "edit_file", path="crlf.txt", old="one\ntwo", new="uno\ndos")
+    assert (project / "crlf.txt").read_bytes() == b"uno\r\ndos\r\nthree\r\n"
+
+
+async def test_write_keeps_the_given_line_endings(tools: dict[str, Tool], project: Path) -> None:
+    await run(tools, "write_file", path="lf.txt", content="a\nb\n")
+    assert (project / "lf.txt").read_bytes() == b"a\nb\n"
+
+
+async def test_writing_onto_a_folder_is_a_tool_error(tools: dict[str, Tool]) -> None:
+    with pytest.raises(ToolError):
+        await run(tools, "write_file", path="src", content="x")
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks need admin rights on Windows")
+async def test_search_does_not_follow_links_out_of_the_project(tmp_path: Path, tools: dict[str, Tool], project: Path) -> None:
+    (tmp_path / "secret.txt").write_text("AWS_SECRET=abc123\n")
+    os.symlink(tmp_path / "secret.txt", project / "notes.txt")
+    result = await run(tools, "search_text", pattern="AWS")
+    assert "abc123" not in result.output
+
+
+async def test_search_needs_a_pattern(tools: dict[str, Tool]) -> None:
+    with pytest.raises(ToolError, match="pattern"):
+        await run(tools, "search_text", pattern="")
+
+
+async def test_search_skips_environment_and_build_folders(tools: dict[str, Tool], project: Path) -> None:
+    for folder in (".venv/lib", "dist", "__pycache__"):
+        (project / folder).mkdir(parents=True)
+        (project / folder / "x.py").write_text("hello")
+    result = await run(tools, "search_text", pattern="hello")
+    assert ".venv" not in result.output and "dist" not in result.output and "__pycache__" not in result.output
+
+
+async def test_very_large_file_is_refused(tools: dict[str, Tool], project: Path) -> None:
+    (project / "big.log").write_text("x" * 3_000_000)
+    with pytest.raises(ToolError, match="too large"):
+        await run(tools, "read_file", path="big.log")
+
+
+@pytest.mark.parametrize("path", [".git./hooks/pre-commit", ".praxium /settings.json"])
+def test_windows_trailing_dots_and_spaces_cannot_reach_protected_dirs(paths: ProjectPaths, path: str) -> None:
+    with pytest.raises(ToolError, match="protected"):
+        paths.resolve(path)

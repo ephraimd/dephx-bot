@@ -1,5 +1,5 @@
 import json
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from typing import Any
 
 from praxium.model import Message, ModelError, ModelReply, TextDelta, ToolCall, ToolSchema, Usage
@@ -17,7 +17,7 @@ class ScriptedModel:
 
     async def stream(
         self, messages: list[Message], tools: list[ToolSchema], max_tokens: int
-    ) -> AsyncIterator[TextDelta | ModelReply]:
+    ) -> AsyncGenerator[TextDelta | ModelReply, None]:
         self.calls.append(list(messages))
         self.offered.append({tool["function"]["name"] for tool in tools})
         reply = self.replies.pop(0)

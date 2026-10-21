@@ -39,7 +39,8 @@
 <section class="rounded-md border border-primary/30 bg-card p-3 text-sm">
 	{#if item.approvalKind === 'command'}
 		<h3 class="mb-2 font-medium">The agent wants to run a command</h3>
-		<pre class="mb-3 overflow-x-auto rounded bg-muted p-2 font-mono text-xs">{item.text}</pre>
+		<!-- Wrapped, never scrolled: the user must see the whole command they approve. -->
+		<pre class="mb-3 rounded bg-muted p-2 font-mono text-xs break-all whitespace-pre-wrap">{item.text}</pre>
 	{:else}
 		<h3 class="mb-2 font-medium">The agent's plan needs your approval</h3>
 		<div class="prose-chat mb-3 max-h-80 overflow-auto rounded bg-muted/40 p-3">{@html renderMarkdown(item.text)}</div>

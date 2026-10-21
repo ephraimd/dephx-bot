@@ -23,6 +23,7 @@
 	let stream: AbortController | null = null;
 	let scroller = $state<HTMLDivElement>();
 	let stickToBottom = true;
+	let stopping = $state(false);
 	let limitDialogOpen = $state(false);
 	let newLimit = $state(0);
 
@@ -73,6 +74,7 @@
 			const { turn_id } = await api<{ turn_id: string }>('POST', '/api/chat/messages', { text });
 			draft = '';
 			stickToBottom = true;
+			stopping = false;
 			transcript.startTurn(turn_id, text);
 			void follow(turn_id);
 		} catch (failure) {
@@ -196,10 +198,14 @@
 			{#if transcript.running}
 				<Button
 					variant="outline"
-					onclick={() => api('POST', '/api/chat/stop')}
+					disabled={stopping}
+					onclick={() => {
+						stopping = true;
+						void api('POST', '/api/chat/stop');
+					}}
 					title="Stops the agent. Tokens already generated are still billed."
 				>
-					Stop
+					{stopping ? 'Stopping...' : 'Stop'}
 				</Button>
 			{:else}
 				<Button disabled={!draft.trim()} onclick={() => send(draft)}>Send</Button>

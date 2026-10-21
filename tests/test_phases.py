@@ -76,3 +76,14 @@ def test_done_starts_new_cycle() -> None:
     assert machine.phase is Phase.EVALUATE
     assert machine.verified is None
     assert machine.start_cycle() is False
+
+
+def test_a_new_cycle_cannot_reuse_the_last_cycles_check() -> None:
+    machine = machine_in(Phase.TEST)
+    machine.record_write()
+    machine.record_check(True)
+    machine.move(Phase.DONE, verified=True)
+    machine.start_cycle()
+    machine.move(Phase.TEST)
+    with pytest.raises(PhaseError):
+        machine.check_move(Phase.DONE, verified=True)

@@ -11,6 +11,7 @@
 	let loadError = $state('');
 	let settingsOpen = $state(false);
 
+	// Only gates the first run: with a chat open, a provider change applies on New chat instead.
 	const hasKey = $derived(settings ? settings.keys[settings.provider]?.is_set : false);
 
 	onMount(async () => {
@@ -28,7 +29,7 @@
 	<main class="grid h-dvh place-items-center p-6 text-sm text-destructive" role="alert">{loadError}</main>
 {:else if !settings}
 	<main class="grid h-dvh place-items-center p-6 text-sm text-muted-foreground">Starting Praxium...</main>
-{:else if !hasKey}
+{:else if !project && !hasKey}
 	<main class="mx-auto grid max-w-md gap-6 px-6 py-16">
 		<div>
 			<h1 class="text-lg font-semibold">Connect a model provider</h1>
