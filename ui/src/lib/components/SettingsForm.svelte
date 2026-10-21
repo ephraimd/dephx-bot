@@ -69,11 +69,11 @@
 			<div class="grid grid-cols-2 gap-3">
 				<div class="grid gap-1.5">
 					<label class="text-sm font-medium" for="custom-window">Context window (tokens)</label>
-					<Input id="custom-window" type="number" step="1000" bind:value={custom.context_window} />
+					<Input id="custom-window" type="number" step="1" bind:value={custom.context_window} />
 				</div>
 				<div class="grid gap-1.5">
 					<label class="text-sm font-medium" for="custom-output">Maximum reply (tokens)</label>
-					<Input id="custom-output" type="number" step="512" bind:value={custom.max_output_tokens} />
+					<Input id="custom-output" type="number" step="1" bind:value={custom.max_output_tokens} />
 				</div>
 			</div>
 		</div>
@@ -90,7 +90,7 @@
 
 	<div class="grid gap-1.5">
 		<label class="text-sm font-medium" for="token-limit">Token limit per chat</label>
-		<Input id="token-limit" type="number" min={option?.min_token_limit || undefined} step="1000" bind:value={limit} />
+		<Input id="token-limit" type="number" min={option?.min_token_limit || undefined} step="1" bind:value={limit} />
 		<p class="text-xs text-muted-foreground">
 			Each chat stops before using more than this. Minimum {option?.min_token_limit.toLocaleString('en-US')} for
 			{option?.label}, the size of one full request.

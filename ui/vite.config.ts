@@ -43,6 +43,8 @@ export default defineConfig({
 		projects: [
 			{
 				extends: './vite.config.ts',
+				// Components are mounted in jsdom, so Svelte's browser build is the one to load.
+				resolve: { conditions: ['browser'] },
 				test: {
 					name: 'unit',
 					environment: 'jsdom',

@@ -308,7 +308,7 @@
 			</Dialog.Description>
 		</Dialog.Header>
 		<form class="grid gap-3" onsubmit={saveLimit}>
-			<Input type="number" step="1000" bind:value={newLimit} aria-label="Token limit" />
+			<Input type="number" step="1" bind:value={newLimit} aria-label="Token limit" />
 			{#if limitError}
 				<p class="text-sm text-destructive" role="alert">{limitError}</p>
 			{/if}
