@@ -1,7 +1,7 @@
 [project]
 name = "dephx-bot"
 version = "0.1.0"
-description = "A desktop app for running a careful coding agent on your own projects"
+description = "An AI coding harness that enforces an engineering process with a phase engine and works with any OpenAI-compatible model"
 readme = "README.md"
 license = "Apache-2.0"
 license-files = ["LICENSE", "NOTICE"]

@@ -1,12 +1,28 @@
 # dephx-bot
 
-dephx-bot is a desktop app that lets you hand a programming task to an AI agent while you stay in control of what it does to your machine. You open a project folder, describe the change you want, and the agent works through it the way a careful engineer would: it reads the existing code first, writes a short plan and waits for you to approve it, makes the change, and then runs the project's tests or checks before it tells you the work is done.
+dephx-bot is an AI coding harness: the program that sits between a language model and your codebase, decides what the model is shown, which tools it may use, and when its work counts as finished. You open a project folder, describe a change, and an agent carries it out on your machine while you approve every command it runs.
 
-Two things set it apart from a plain chat with a model. First, every shell command the agent wants to run is shown to you in full, and nothing runs until you click Run once or Always allow. Second, the agent's process is enforced by the app rather than left to the model's good intentions. The agent cannot write files while it is still investigating, cannot start building before you approve its plan, and can only call its work "verified" if a check actually passed after its last change. When it cannot verify something, it has to say so and explain why.
+I built it as my own research into harness engineering, the study of how to make agentic coding flows efficient. The long-term goal is a harness that makes a software engineer many times more productive, on the order of a hundred times, while spending far fewer tokens than the harnesses in use today. It is not there yet. Those are the aims the design is judged against, and measuring the harness against them honestly is part of the work.
 
-The agent's engineering judgement comes from [senior-dephx](https://github.com/ephraimd/senior-dephx), a set of written guidelines about reading code before changing it, keeping changes small, and proving that something works before claiming it does. A pinned copy ships with the app, and the agent loads the relevant guideline when a task calls for it.
+## What makes it work
 
-dephx-bot talks to models through the OpenAI-compatible chat API. It currently supports [Praxiom Cloud](https://cloud.praxiomai.io) and [DeepSeek](https://platform.deepseek.com), and you choose between them in the app's settings.
+Two ideas carry most of the weight.
+
+**The phase engine.** The app, not the model, decides what stage the work is in. Every task moves through five phases: evaluate, ideate, build, test and done. Each phase unlocks a different set of tools, so the agent cannot write a file while it is still investigating, cannot start building until you approve its plan, and cannot report the work as verified unless a check actually passed after its last change. A model can be persuaded to skip a step by its own reasoning; a state machine in the harness cannot. This keeps runs short and predictable, and it means "done and verified" is a fact the app checked, not a sentence the model wrote.
+
+**senior-dephx.** The agent's engineering judgement comes from [senior-dephx](https://github.com/ephraimd/senior-dephx), a set of guidelines I wrote about how a senior engineer works: read the real code before changing it, find what already exists before adding something new, keep the change as small as the problem, and prove that it works before saying so. The guidelines ship with the app and are loaded one at a time, only when the task in front of the agent calls for them, so they cost tokens only when they are used. The app shows that a guideline was loaded and how large it was, but not its text.
+
+Around those two ideas sit the parts any serious harness needs: a token limit per chat that is enforced before each request rather than after, a live count of the tokens every step used, trimming of old tool output that the agent can recover by running the tool again, and compaction that rewrites a long chat into a summary whose record of files, commands and approvals is kept by the app instead of remembered by the model.
+
+## Models
+
+dephx-bot works with any model served through an OpenAI-compatible chat API. Choose Custom in Settings and enter the API address, the model name, its context window and its largest reply. A couple of providers are already filled in so that you only need to paste a key.
+
+The project was inspired by [Praxiom AI](https://www.praxiomai.io) and was built to test what the Praxiom model can do on real agentic work: long tool-calling loops, a hidden provider prompt on every request, a 64,000-token window and prepaid billing. The reports in `docs/reports/` record what that testing found, from OpenAI compatibility to speed and cost.
+
+## What testing Praxiom showed
+
+The `bench/` folder holds a small benchmark: coding tasks with hidden tests the model never sees, and a meter that adds up the token usage each provider reports. [Report 05](docs/reports/05-praxiom-vs-deepseek.md) uses it to compare Praxiom with DeepSeek on speed, cost and ability. In short, Praxiom solved every task at the first attempt, started answering in under a second and used far fewer output tokens, while its hidden system prompt and the lack of a discount for repeated prompts made agent loops cost more than they need to. The earlier reports cover its OpenAI compatibility and its image models.
 
 ## What you need
 
@@ -91,11 +107,13 @@ The terminal prints an address that ends in `#token=...`. Open that full address
 
 ## Getting an API key
 
-dephx-bot does not include a model of its own. You need a key from one of the supported providers.
+dephx-bot does not include a model of its own. You need an API key from a provider whose API follows OpenAI's chat completions format, which today covers most hosted models and local servers such as Ollama and vLLM.
 
-**Praxiom Cloud.** Create an account at [cloud.praxiomai.io](https://cloud.praxiomai.io). New accounts receive a small amount of free credit once the email address is confirmed, and further credit is bought in Espees from the dashboard. Create an API key under API keys; it starts with `px_live_` and is only shown once, so copy it straight into dephx-bot. Praxiom's model has a 64,000-token context window, which includes about 3,000 tokens of Praxiom's own instructions on every request, so long sessions run out of room sooner than with DeepSeek.
+**Praxiom Cloud.** Create an account at [cloud.praxiomai.io](https://cloud.praxiomai.io). New accounts receive a small amount of free credit once the email address is confirmed, and further credit is bought in Espees from the dashboard. Create an API key under API keys; it starts with `px_live_` and is only shown once, so copy it straight into dephx-bot. Praxiom's model has a 64,000-token context window, which includes about 3,000 tokens of Praxiom's own instructions on every request, so long sessions reach compaction sooner than on a model with a larger window.
 
-**DeepSeek.** Create an account at [platform.deepseek.com](https://platform.deepseek.com), add credit, and create an API key. DeepSeek is cheaper per token and has a much larger context window, which makes it a good choice while you are getting used to the app.
+**DeepSeek.** Create an account at [platform.deepseek.com](https://platform.deepseek.com), add credit, and create an API key. DeepSeek has a very large context window and charges much less for a repeated prompt prefix, which suits the many requests an agent makes.
+
+**Anything else.** Choose Custom in Settings, enter the API address (for example `https://api.example.com/v1`), the model name exactly as the provider spells it, the context window and the largest reply, and paste the key. The token limit you can set depends on those last two numbers, because one full request has to fit inside it.
 
 ## Your first session
 
@@ -130,7 +148,7 @@ Pressing Stop stops the agent from doing anything further, but tokens the provid
 | Provider, API keys and the default token limit | `~/Library/Application Support/dephx-bot/settings.json` on macOS and `%LOCALAPPDATA%\dephx-bot\dephx-bot\settings.json` on Windows. On macOS and Linux the file is readable only by your user account. |
 | Commands you chose to always allow for a project | `.dephx/settings.json` inside that project folder |
 
-If you set the environment variables `PRAXIOM_API_KEY` or `DEEPSEEK_API_KEY` before starting the app, those keys are used instead of the ones in the settings file. Conversations are not saved; closing the app or starting a new chat clears them.
+If you set the environment variable `PRAXIOM_API_KEY` or `DEEPSEEK_API_KEY` before starting the app, that key is used for its provider instead of the one in the settings file. Conversations are not saved; closing the app or starting a new chat clears them.
 
 ## Working on dephx-bot itself
 
@@ -164,7 +182,7 @@ uv run mypy --strict dephx_bot tests && uv run pytest
 cd ui && npm run check && npm run test
 ```
 
-The `docs/` folder explains how the project was designed and built. `docs/tutorials/` has a short guide to each part of the code, written in the order the parts were built. `docs/reports/` records what was found while testing the Praxiom API and what the end-to-end testing of the app showed, including the bugs that real runs uncovered.
+The `docs/` folder explains how the project was designed and built. `docs/tutorials/` has a short guide to each part of the code, written in the order the parts were built. `docs/reports/` records what was found while testing the Praxiom API, what the end-to-end testing of the app showed, including the bugs that real runs uncovered, and the benchmark against Aider. `bench/` holds the benchmark itself, so anyone can rerun it with their own keys.
 
 ## Troubleshooting
 
