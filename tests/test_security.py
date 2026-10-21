@@ -1,31 +1,6 @@
-from pathlib import Path
-
-import pytest
 from fastapi.testclient import TestClient
 
-from praxium.app import build_api
-from praxium.config import AppConfig
-
-TOKEN = "t0k"
-HOST = "127.0.0.1:9999"
-AUTH = {"Authorization": f"Bearer {TOKEN}"}
-
-
-@pytest.fixture
-def client(tmp_path: Path) -> TestClient:
-    static_dir = tmp_path / "static"
-    static_dir.mkdir()
-    (static_dir / "index.html").write_text("<p>placeholder</p>")
-    config = AppConfig(
-        dev=True,
-        settings_path=tmp_path / "settings.json",
-        static_dir=static_dir,
-        skills_dir=tmp_path / "skills",
-        env_api_keys={},
-        os_name="macOS",
-        shell_name="/bin/sh",
-    )
-    return TestClient(build_api(config, token=TOKEN, host=HOST), base_url=f"http://{HOST}")
+from tests.conftest import AUTH
 
 
 def test_api_requires_token(client: TestClient) -> None:

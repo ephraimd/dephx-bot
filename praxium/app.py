@@ -14,6 +14,8 @@ from fastapi.staticfiles import StaticFiles
 from praxium.config import DEV_PORT, AppConfig, load_config
 from praxium.errors import install_error_handler
 from praxium.security import LaunchGuard, new_launch_token
+from praxium.settings.app_settings import AppSettingsStore
+from praxium.settings.routes import settings_router
 
 SERVER_START_TIMEOUT_SECONDS = 10.0
 
@@ -25,6 +27,9 @@ def build_api(config: AppConfig, *, token: str, host: str) -> FastAPI:
     @app.get("/api/health")
     async def health() -> dict[str, bool]:
         return {"ok": True}
+
+    settings = AppSettingsStore(config.settings_path, config.env_api_keys)
+    app.include_router(settings_router(settings))
 
     # Mounted last: "/" would otherwise swallow every /api route.
     app.mount("/", StaticFiles(directory=config.static_dir, html=True), name="ui")
