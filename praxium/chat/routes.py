@@ -7,6 +7,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
 from praxium.agent.approvals import ApprovalAnswer, Decision
+from praxium.agent.events import Compacted
 from praxium.chat.service import ChatService, ChatState
 from praxium.errors import ApiError
 from praxium.settings.project import ProjectView
@@ -36,6 +37,10 @@ class TokenLimit(BaseModel):
 
 class Link(BaseModel):
     url: str
+
+
+class Compact(BaseModel):
+    keep: str | None = None
 
 
 def chat_router(
@@ -113,6 +118,14 @@ def chat_router(
     async def token_limit(body: TokenLimit) -> ChatState:
         service.set_token_limit(body.limit)
         return service.state()
+
+    @router.post("/chat/compact")
+    async def compact(body: Compact) -> Compacted:
+        return await service.compact(body.keep)
+
+    @router.post("/chat/compact/undo")
+    async def undo_compaction() -> ChatState:
+        return service.undo_compaction()
 
     @router.post("/chat/new")
     async def new_chat() -> dict[str, bool]:

@@ -1,5 +1,5 @@
 import json
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Sequence
 from typing import Any
 
 from praxium.model import Message, ModelError, ModelReply, TextDelta, ToolCall, ToolSchema, Usage
@@ -10,7 +10,7 @@ USAGE = Usage(1_000, 50, None, estimated=False)
 class ScriptedModel:
     """A ModelClient that plays back prepared replies and records what it was sent."""
 
-    def __init__(self, replies: list[ModelReply | ModelError]) -> None:
+    def __init__(self, replies: Sequence[ModelReply | ModelError]) -> None:
         self.replies = list(replies)
         self.calls: list[list[Message]] = []
         self.offered: list[set[str]] = []

@@ -6,12 +6,13 @@ from collections.abc import AsyncIterator, Callable
 from pydantic import BaseModel
 
 from praxium.agent.approvals import ApprovalAnswer, ApprovalBroker
-from praxium.agent.events import ApprovalRequired, ErrorRaised, Event, TurnFinished, TurnStatus
+from praxium.agent.compaction import CompactionNotAffordable
+from praxium.agent.events import ApprovalRequired, Compacted, ErrorRaised, Event, TurnFinished, TurnStatus
 from praxium.agent.loop import ChatSession
 from praxium.agent.phases import Phase
 from praxium.agent.prompt import build_system_prompt
 from praxium.errors import ApiError
-from praxium.model import ModelClient
+from praxium.model import ModelClient, ModelError
 from praxium.providers import PROVIDERS, ProviderSpec
 from praxium.settings.app_settings import AppSettingsStore
 from praxium.settings.project import Project, ProjectView, open_project
@@ -34,6 +35,7 @@ class ChatState(BaseModel):
     context_budget: int
     running_turn: str | None
     pending_approvals: list[ApprovalRequired]
+    can_undo_compaction: bool
 
 
 class TurnRecord:
@@ -83,6 +85,7 @@ class ChatService:
         self._broker = ApprovalBroker()
         self._turns: dict[str, TurnRecord] = {}
         self._running: TurnRecord | None = None
+        self._compacting = False
         self._cancel = asyncio.Event()
         # Held so the task is not garbage-collected while it runs.
         self._task: asyncio.Task[None] | None = None
@@ -141,6 +144,31 @@ class ChatService:
         self._cancel.set()
         self._broker.cancel_all()
 
+    async def compact(self, keep_note: str | None) -> Compacted:
+        self._refuse_while_running()
+        if self._session is None:
+            raise ApiError(409, "nothing_to_compact", "There is nothing to compact yet.")
+        self._compacting = True
+        try:
+            event = await self._session.compact(automatic=False, keep_note=(keep_note or "").strip() or None)
+        except CompactionNotAffordable as error:
+            raise ApiError(
+                400, "token_limit", "Compacting needs one model call, and this chat's token limit has no room for it."
+            ) from error
+        except ModelError as error:
+            raise ApiError(502, error.code, error.message) from error
+        finally:
+            self._compacting = False
+        if event is None:
+            raise ApiError(409, "nothing_to_compact", "There is not enough history to compact yet.")
+        return event
+
+    def undo_compaction(self) -> ChatState:
+        self._refuse_while_running()
+        if self._session is None or not self._session.undo_compaction():
+            raise ApiError(409, "nothing_to_undo", "There is no compaction to undo.")
+        return self.state()
+
     def set_token_limit(self, limit: int) -> None:
         spec = self._session.spec if self._session else PROVIDERS[self.settings.load().provider]
         if limit < spec.min_token_limit():
@@ -169,6 +197,7 @@ class ChatService:
                 ApprovalRequired(approval_id=approval_id, kind=request.kind, text=request.text)
                 for approval_id, request in self._broker.pending().items()
             ],
+            can_undo_compaction=session.can_undo_compaction if session else False,
         )
 
     async def _run(self, record: TurnRecord, session: ChatSession, text: str) -> None:
@@ -214,3 +243,5 @@ class ChatService:
     def _refuse_while_running(self) -> None:
         if self._running is not None:
             raise ApiError(409, "turn_running", "Wait for the agent to finish, or press Stop.")
+        if self._compacting:
+            raise ApiError(409, "compacting", "Wait for the compaction to finish.")

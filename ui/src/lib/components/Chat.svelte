@@ -10,7 +10,7 @@
 	import * as Dialog from '#lib/components/ui/dialog/index.js';
 	import { Input } from '#lib/components/ui/input/index.js';
 	import { Textarea } from '#lib/components/ui/textarea/index.js';
-	import type { Decision } from '#lib/events.js';
+	import type { Compacted, Decision } from '#lib/events.js';
 	import { Transcript, type NoticeItem } from '#lib/transcript.svelte.js';
 
 	let { project, onOpenSettings }: { project: ProjectView; onOpenSettings: () => void } = $props();
@@ -24,6 +24,10 @@
 	let scroller = $state<HTMLDivElement>();
 	let stickToBottom = true;
 	let stopping = $state(false);
+	let compactOpen = $state(false);
+	let keepNote = $state('');
+	let compacting = $state(false);
+	let compactError = $state('');
 	let limitDialogOpen = $state(false);
 	let newLimit = $state(0);
 
@@ -99,6 +103,31 @@
 		transcript.sync(await api<ChatState>('GET', '/api/chat/state'));
 	}
 
+	async function compactNow(event: SubmitEvent) {
+		event.preventDefault();
+		compacting = true;
+		compactError = '';
+		try {
+			const result = await api<Compacted>('POST', '/api/chat/compact', { keep: keepNote });
+			transcript.addCompaction(result);
+			transcript.sync(await api<ChatState>('GET', '/api/chat/state'));
+			keepNote = '';
+			compactOpen = false;
+			stickToBottom = true;
+		} catch (failure) {
+			compactError = failure instanceof Error ? failure.message : 'Could not compact the chat.';
+		} finally {
+			compacting = false;
+		}
+	}
+
+	async function undoCompaction(key: string) {
+		transcript.sync(await api<ChatState>('POST', '/api/chat/compact/undo'));
+		transcript.markCompactionUndone(key);
+	}
+
+	const lastCompaction = $derived(transcript.items.findLast((item) => item.kind === 'compaction')?.key);
+
 	function editLimit() {
 		newLimit = Math.max(transcript.chatLimit * 2, transcript.chatUsed * 2);
 		limitDialogOpen = true;
@@ -141,6 +170,13 @@
 				budget={transcript.contextBudget}
 				onEditLimit={editLimit}
 			/>
+			<Button
+				size="sm"
+				variant="ghost"
+				disabled={transcript.running}
+				title="Replace the older part of this chat with a summary, so later requests send fewer tokens"
+				onclick={() => (compactOpen = true)}>Compact</Button
+			>
 			<Button size="sm" variant="ghost" disabled={transcript.running} onclick={newChat}>New chat</Button>
 			<Button size="sm" variant="ghost" onclick={onOpenSettings}>Settings</Button>
 		</div>
@@ -172,6 +208,29 @@
 						<span class="shrink-0 font-medium tracking-wide text-foreground uppercase">{item.phase}</span>
 						<span class="line-clamp-2">{item.summary}</span>
 					</div>
+				{:else if item.kind === 'compaction'}
+					<details class="rounded-md border border-dashed px-3 py-2 text-sm">
+						<summary class="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1">
+							<span class="font-medium">
+								{item.undone ? 'Compaction undone' : 'Memory compacted'}:
+								<span class="tabular-nums">{item.before.toLocaleString('en-US')} → {item.after.toLocaleString('en-US')} tokens</span>
+							</span>
+							<span class="text-xs text-muted-foreground">{item.automatic ? 'automatic, the chat was nearly full' : 'you asked'}</span>
+							{#if !item.undone && transcript.canUndoCompaction && item.key === lastCompaction}
+								<Button
+									class="ml-auto"
+									size="xs"
+									variant="outline"
+									onclick={(event: MouseEvent) => {
+										event.preventDefault();
+										void undoCompaction(item.key);
+									}}>Undo</Button
+								>
+							{/if}
+						</summary>
+						<p class="mt-2 text-xs text-muted-foreground">What the agent now remembers in place of the older messages:</p>
+						<pre class="mt-1 max-h-80 overflow-auto rounded bg-muted p-2 font-mono text-xs whitespace-pre-wrap">{item.summary}</pre>
+					</details>
 				{:else if item.kind === 'notice'}
 					<div class={['rounded-md border px-3 py-2 text-sm', noticeTone[item.status]]} role="status">
 						<p>{item.text}</p>
@@ -216,6 +275,29 @@
 		{/if}
 	</footer>
 </div>
+
+<Dialog.Root bind:open={compactOpen}>
+	<Dialog.Content>
+		<Dialog.Header>
+			<Dialog.Title>Compact this chat</Dialog.Title>
+			<Dialog.Description>
+				The older part of the conversation is replaced by a summary. Files changed, commands run and your approvals
+				are copied from Praxium's own records; the model writes the rest. This uses one request to the model, which
+				counts against the chat's token limit. You can undo it until you send your next message.
+			</Dialog.Description>
+		</Dialog.Header>
+		<form class="grid gap-3" onsubmit={compactNow}>
+			<label class="text-sm font-medium" for="keep-note">Anything the agent must keep in mind (optional)</label>
+			<Textarea id="keep-note" rows={3} placeholder="For example: we decided to store exports as CSV" bind:value={keepNote} />
+			{#if compactError}
+				<p class="text-sm text-destructive" role="alert">{compactError}</p>
+			{/if}
+			<Dialog.Footer>
+				<Button type="submit" disabled={compacting}>{compacting ? 'Compacting...' : 'Compact now'}</Button>
+			</Dialog.Footer>
+		</form>
+	</Dialog.Content>
+</Dialog.Root>
 
 <Dialog.Root bind:open={limitDialogOpen}>
 	<Dialog.Content>

@@ -121,4 +121,27 @@ describe('Transcript', () => {
 			'Token limit reached: 290,000 of 300,000 used. Raise the limit for this chat to continue.'
 		);
 	});
+
+	it('shows an automatic compaction and offers undo until the next message', () => {
+		const t = new Transcript();
+		t.startTurn('t1', 'go');
+		play(t, [{ type: 'compacted', automatic: true, before_tokens: 41_200, after_tokens: 7_800, summary: 'Summary...' }]);
+
+		expect(t.items[1]).toMatchObject({ kind: 'compaction', automatic: true, before: 41_200, after: 7_800, undone: false });
+		expect(t.canUndoCompaction).toBe(true);
+
+		t.startTurn('t2', 'next');
+		expect(t.canUndoCompaction).toBe(false);
+	});
+
+	it('records a compaction you asked for and its undo', () => {
+		const t = new Transcript();
+		t.addCompaction({ type: 'compacted', automatic: false, before_tokens: 9_000, after_tokens: 2_000, summary: 'S' });
+		const key = t.items[0].key;
+
+		t.markCompactionUndone(key);
+
+		expect(t.items[0]).toMatchObject({ kind: 'compaction', automatic: false, undone: true });
+		expect(t.canUndoCompaction).toBe(false);
+	});
 });

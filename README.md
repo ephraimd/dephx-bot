@@ -113,13 +113,15 @@ Then describe what you want in plain words, for example "Add a /health endpoint 
 
 Each step of the conversation shows how many tokens it used, and each tool result shows how many tokens it adds to every later request. If you need to stop the agent, press Stop; it ends the current step, cancels any question that is still open, and kills any command that is running along with everything that command started.
 
+Long sessions eventually fill the model's context window, because every step sends the whole conversation again. Praxium first hides old command output and old file contents from each request, which costs nothing because the agent can read the file again if it needs to. When that is no longer enough, it compacts the chat: the older part of the conversation is replaced by a summary, and a line in the chat shows how many tokens that saved. The summary's record of which files changed, which commands ran and what you approved comes from Praxium's own log rather than from the model, so those facts cannot be lost or made up; the model only writes down what it learned and what is still open. You can also press Compact at the top of the window whenever you like, and tell it anything the agent must keep in mind. Opening the line in the chat shows exactly what the agent now remembers, and Undo puts the full conversation back until you send your next message.
+
 ## Costs and limits
 
 Every request to the model is billed by the provider in tokens, and an agent makes many requests in one task, because it sends the whole conversation again each time it takes a step. A small task, such as creating two files and checking them, used around 30,000 tokens with DeepSeek in testing. Building a small web page with a Playwright test from an empty folder used around 100,000.
 
 To keep spending predictable, every chat has a token limit that you set in Settings and can raise for the current chat from the counter at the top of the window. Before each request Praxium adds up what the chat has used so far and the largest possible size of the next request, and it does not send the request if that would go over the limit. Instead the chat tells you how much was used and lets you raise the limit and continue.
 
-Pressing Stop stops the agent from doing anything further, but tokens the provider has already generated are still billed. A lower token limit is the reliable way to spend less.
+Pressing Stop stops the agent from doing anything further, but tokens the provider has already generated are still billed. A lower token limit is the reliable way to spend less. Compacting a long chat also helps, because every later step then sends fewer tokens, although writing the summary is itself one request that counts towards the limit.
 
 ## Where your settings are kept
 

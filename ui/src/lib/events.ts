@@ -45,6 +45,13 @@ export type ApprovalRequired = {
 	text: string;
 };
 export type ApprovalResolved = { type: 'approval_resolved'; approval_id: string; decision: Decision };
+export type Compacted = {
+	type: 'compacted';
+	automatic: boolean;
+	before_tokens: number;
+	after_tokens: number;
+	summary: string;
+};
 export type TurnFinished = { type: 'turn_finished'; status: TurnStatus; message: string };
 export type ErrorRaised = { type: 'error'; code: string; message: string };
 
@@ -56,5 +63,6 @@ export type AgentEvent =
 	| ToolFinished
 	| ApprovalRequired
 	| ApprovalResolved
+	| Compacted
 	| TurnFinished
 	| ErrorRaised;

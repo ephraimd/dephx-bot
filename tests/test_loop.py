@@ -1,6 +1,7 @@
 import asyncio
 import json
 import sys
+from dataclasses import replace
 from collections.abc import AsyncGenerator, Callable
 from pathlib import Path
 from typing import Any, TypeVar
@@ -11,6 +12,7 @@ from praxium.agent.approvals import ApprovalAnswer, ApprovalBroker, Decision
 from praxium.agent.events import (
     ApprovalRequired,
     ApprovalResolved,
+    Compacted,
     ErrorRaised,
     Event,
     PhaseChanged,
@@ -331,3 +333,22 @@ async def test_a_crashing_tool_does_not_end_the_turn(tmp_path: Path) -> None:
 
     assert await turn.run("read") is TurnStatus.WAITING_FOR_USER
     assert "disk on fire" in turn.of(ToolFinished)[0].output
+
+
+
+async def test_history_near_the_window_is_compacted_automatically() -> None:
+    # Long agent replies cannot be trimmed, so only compaction can make room.
+    spec = replace(PRAXIOM, history_budget=4_000)
+    model = ScriptedModel([ModelReply("Notes about the work so far.", [], Usage(3_000, 100, None, False)), text("All good.")])
+    session = ChatSession(model=model, spec=spec, tools=[], system_prompt="sys", token_limit=1_000_000)
+    session.messages += [Message("user", "first request")] + [Message("assistant", f"{i} " + "x" * 2_000) for i in range(6)]
+    turn = Turn(session)
+
+    status = await turn.run("continue")
+
+    compacted = turn.of(Compacted)
+    assert len(compacted) == 1 and compacted[0].automatic
+    assert compacted[0].after_tokens < compacted[0].before_tokens
+    assert turn.events.index(compacted[0]) < turn.events.index(turn.of(TokenDelta)[0])
+    assert status is TurnStatus.WAITING_FOR_USER
+    assert session.can_undo_compaction

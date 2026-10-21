@@ -251,3 +251,45 @@ def test_open_link_opens_http_in_system_browser(keyed_config: AppConfig) -> None
     with make_client(keyed_config, Models(), links) as client:
         post(client, "/api/open-link", {"url": "https://who.int/malaria"})
     assert links.opened == ["https://who.int/malaria"]
+
+
+
+def chat_with_history(client: TestClient, project: Path) -> None:
+    post(client, "/api/project/open", {"path": str(project)})
+    for text_ in ("first", "second", "third"):
+        list(events(client, post(client, "/api/chat/messages", {"text": text_})["turn_id"]))
+
+
+def test_compact_and_undo_through_the_api(keyed_config: AppConfig, project: Path) -> None:
+    script = [text("one"), text("two"), text("three"), text("Summary notes.")]
+    with make_client(keyed_config, Models(script)) as client:
+        chat_with_history(client, project)
+
+        compacted = post(client, "/api/chat/compact", {"keep": "Use SQLite"})
+        state = client.get("/api/chat/state", headers=AUTH).json()
+        undone = post(client, "/api/chat/compact/undo")
+
+    assert compacted["type"] == "compacted" and compacted["automatic"] is False
+    assert "Use SQLite" in compacted["summary"]
+    assert state["can_undo_compaction"] is True
+    assert undone["can_undo_compaction"] is False
+
+
+def test_compact_with_nothing_to_compact_explains(keyed_config: AppConfig, project: Path) -> None:
+    with make_client(keyed_config, Models()) as client:
+        post(client, "/api/project/open", {"path": str(project)})
+        response = client.post("/api/chat/compact", headers=AUTH, json={})
+        undo = client.post("/api/chat/compact/undo", headers=AUTH)
+    assert response.status_code == 409 and response.json()["error"]["code"] == "nothing_to_compact"
+    assert undo.status_code == 409 and undo.json()["error"]["code"] == "nothing_to_undo"
+
+
+def test_compact_is_refused_while_a_turn_runs(keyed_config: AppConfig, project: Path) -> None:
+    script = [call("advance_phase", {"to": "ideate", "summary": "x"}), call("advance_phase", {"to": "build", "summary": "plan"})]
+    with make_client(keyed_config, Models(script)) as client:
+        post(client, "/api/project/open", {"path": str(project)})
+        turn_id = post(client, "/api/chat/messages", {"text": "go"})["turn_id"]
+        list(events(client, turn_id, until="approval_required"))
+        response = client.post("/api/chat/compact", headers=AUTH, json={})
+        post(client, "/api/chat/stop")
+    assert response.status_code == 409 and response.json()["error"]["code"] == "turn_running"

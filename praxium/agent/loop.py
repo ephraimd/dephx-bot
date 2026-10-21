@@ -6,9 +6,20 @@ from typing import Any
 
 from praxium.agent.approvals import ApprovalAnswer, ApprovalBroker, ApprovalCancelled, ApprovalRequest, Decision
 from praxium.agent.budget import ContextFull, TokenLedger, estimate_messages, trim_history
+from praxium.agent.compaction import (
+    COMPACT_AT_SHARE,
+    SUMMARY_MAX_TOKENS,
+    CompactionNotAffordable,
+    WorkLog,
+    preserved_skills,
+    split_history,
+    summary_message,
+    summary_request,
+)
 from praxium.agent.events import (
     ApprovalRequired,
     ApprovalResolved,
+    Compacted,
     Emit,
     ErrorRaised,
     PhaseChanged,
@@ -38,6 +49,8 @@ from praxium.tools import Tool, ToolContext, ToolError, ToolResult, cap_output
 log = logging.getLogger(__name__)
 
 MAX_STEPS = 40
+# An automatic compaction must free at least this share of the budget, or it is not worth a model call.
+MIN_COMPACTION_SHARE = 0.25
 SUMMARY_CHARS = 120
 NOT_RUN = "Not run: the user stopped the turn."
 
@@ -71,9 +84,49 @@ class ChatSession:
         self.phase = PhaseMachine()
         self.ledger = TokenLedger(token_limit)
         self.messages = [Message("system", system_prompt)]
+        self.worklog = WorkLog()
+        self.latest_request: Message | None = None
+        # The history before the last compaction, and how long the compacted history was then.
+        self._undo: tuple[list[Message], int] | None = None
 
     def context_tokens(self) -> int:
         return estimate_messages(self.messages, self._schemas())
+
+    @property
+    def can_undo_compaction(self) -> bool:
+        return self._undo is not None
+
+    async def compact(self, *, automatic: bool, keep_note: str | None) -> Compacted | None:
+        """Replace the older history with a summary. None when there is nothing worth compacting."""
+        split = split_history(self.messages, self.latest_request)
+        if split is None:
+            return None
+        if automatic and estimate_messages([m for m in split.old if not m.pinned], []) < (
+            MIN_COMPACTION_SHARE * self.spec.history_budget
+        ):
+            return None
+
+        request = summary_request(split.old, keep_note, self.spec.history_budget - SUMMARY_MAX_TOKENS)
+        if not self.ledger.can_afford(self.spec.hidden_prompt_tokens + estimate_messages(request, []), SUMMARY_MAX_TOKENS):
+            raise CompactionNotAffordable()
+        reply = await self._summarise(request)
+        self.ledger.record(reply.usage)
+
+        before = self.context_tokens()
+        summary = summary_message(self.worklog, reply.text, keep_note)
+        previous = list(self.messages)
+        self.messages = [self.messages[0], *preserved_skills(split.old), summary, *split.kept]
+        self._undo = (previous, len(self.messages))
+        return Compacted(automatic=automatic, before_tokens=before, after_tokens=self.context_tokens(), summary=summary.content)
+
+    def undo_compaction(self) -> bool:
+        if self._undo is None:
+            return False
+        previous, compacted_length = self._undo
+        # Messages added after the compaction are kept, on top of the restored history.
+        self.messages = [*previous, *self.messages[compacted_length:]]
+        self._undo = None
+        return True
 
     async def run_turn(
         self, user_text: str, *, emit: Emit, approvals: ApprovalBroker, cancel: asyncio.Event
@@ -87,7 +140,9 @@ class ChatSession:
     ) -> tuple[TurnStatus, str]:
         if self.phase.start_cycle():
             await emit(PhaseChanged(phase=self.phase.phase, summary="New request."))
-        self.messages.append(Message("user", user_text))
+        self.latest_request = Message("user", user_text)
+        self.messages.append(self.latest_request)
+        self._undo = None
         context = ToolContext(request_approval=lambda r: self._ask(r, approvals, emit), cancel=cancel)
         reminded = False
 
@@ -97,19 +152,21 @@ class ChatSession:
 
             schemas = self._schemas()
             try:
-                request = trim_history(self.messages, self.spec.history_budget, schemas)
+                request = await self._fit(schemas, emit)
             except ContextFull:
                 message = f"This chat is too long for {self.spec.label}. Start a new chat."
                 await emit(ErrorRaised(code="context_full", message=message))
                 return TurnStatus.FAILED, message
+            except CompactionNotAffordable:
+                return TurnStatus.TOKEN_LIMIT, self._limit_message()
+            except ModelError as error:
+                await emit(ErrorRaised(code=error.code, message=error.message))
+                return TurnStatus.FAILED, error.message
             request.append(Message("system", phase_note(self.phase.phase)))
 
             context_tokens = estimate_messages(request, schemas)
             if not self.ledger.can_afford(self.spec.hidden_prompt_tokens + context_tokens, self.spec.max_output_tokens):
-                return TurnStatus.TOKEN_LIMIT, (
-                    f"Token limit reached: {self.ledger.used:,} of {self.ledger.limit:,} used. "
-                    "Raise the limit for this chat to continue."
-                )
+                return TurnStatus.TOKEN_LIMIT, self._limit_message()
 
             try:
                 reply = await self._call_model(step, request, schemas, emit, cancel)
@@ -173,6 +230,33 @@ class ChatSession:
                     return item
         raise ModelError("provider_error", "The model stream ended without a reply.")
 
+    async def _fit(self, schemas: list[ToolSchema], emit: Emit) -> list[Message]:
+        """The request history: trimmed if that is enough, compacted first if it is not."""
+        budget = self.spec.history_budget
+        try:
+            request = trim_history(self.messages, budget, schemas)
+            if estimate_messages(request, schemas) <= COMPACT_AT_SHARE * budget:
+                return request
+        except ContextFull:
+            pass
+        compacted = await self.compact(automatic=True, keep_note=None)
+        if compacted is not None:
+            await emit(compacted)
+        return trim_history(self.messages, budget, schemas)
+
+    async def _summarise(self, request: list[Message]) -> ModelReply:
+        async with aclosing(self.model.stream(request, [], SUMMARY_MAX_TOKENS)) as stream:
+            async for item in stream:
+                if isinstance(item, ModelReply):
+                    return item
+        raise ModelError("provider_error", "The model stream ended without a summary.")
+
+    def _limit_message(self) -> str:
+        return (
+            f"Token limit reached: {self.ledger.used:,} of {self.ledger.limit:,} used. "
+            "Raise the limit for this chat to continue."
+        )
+
     def _skip(self, calls: list[ToolCall]) -> None:
         # Every tool call needs a result, or the provider rejects the next request.
         for call in calls:
@@ -191,6 +275,7 @@ class ChatSession:
             log.exception("tool %s failed", call.name)
             result = ToolResult(f"Tool error: {type(error).__name__}: {error}", ok=False)
 
+        self.worklog.record_call(call, result)
         if result.wrote_file:
             self.phase.record_write()
         if result.check_succeeded is not None:
@@ -252,6 +337,7 @@ class ChatSession:
             await emit(ApprovalRequired(approval_id=approval_id, kind=question.kind, text=question.text))
 
         answer = await approvals.ask(request, announce)
+        self.worklog.record_decision(request, answer)
         await emit(ApprovalResolved(approval_id=opened[0], decision=answer.decision))
         return answer
 

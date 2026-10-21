@@ -108,4 +108,5 @@ export type ChatState = {
 	context_budget: number;
 	running_turn: string | null;
 	pending_approvals: ApprovalRequired[];
+	can_undo_compaction: boolean;
 };

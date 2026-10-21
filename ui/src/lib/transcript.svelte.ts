@@ -1,5 +1,5 @@
 import type { ChatState } from './api';
-import type { AgentEvent, Decision, Phase, TurnStatus, UsageReported } from './events';
+import type { AgentEvent, Compacted, Decision, Phase, TurnStatus, UsageReported } from './events';
 
 export type UserItem = { kind: 'user'; key: string; text: string };
 export type AssistantItem = {
@@ -36,7 +36,16 @@ export type NoticeItem = {
 	code: string | null;
 	text: string;
 };
-export type Item = UserItem | AssistantItem | ToolItem | ApprovalItem | PhaseItem | NoticeItem;
+export type CompactionItem = {
+	kind: 'compaction';
+	key: string;
+	automatic: boolean;
+	before: number;
+	after: number;
+	summary: string;
+	undone: boolean;
+};
+export type Item = UserItem | AssistantItem | ToolItem | ApprovalItem | PhaseItem | NoticeItem | CompactionItem;
 
 // The turn_finished statuses that need words of their own; the rest use the server's message.
 const STATUS_TEXT: Partial<Record<TurnStatus, string>> = {
@@ -57,6 +66,8 @@ export class Transcript {
 	chatLimit = $state(0);
 	contextTokens = $state(0);
 	contextBudget = $state(0);
+	// The server keeps the pre-compaction history until the next message, so undo is possible until then.
+	canUndoCompaction = $state(false);
 
 	#turnId = '';
 	#errorShown = false;
@@ -67,6 +78,7 @@ export class Transcript {
 		this.chatLimit = state.chat_limit;
 		this.contextTokens = state.context_tokens;
 		this.contextBudget = state.context_budget;
+		this.canUndoCompaction = state.can_undo_compaction;
 	}
 
 	clear(): void {
@@ -78,7 +90,28 @@ export class Transcript {
 		this.#turnId = turnId;
 		this.#errorShown = false;
 		this.running = true;
+		this.canUndoCompaction = false;
 		if (userText !== null) this.items.push({ kind: 'user', key: `${turnId}:user`, text: userText });
+	}
+
+	addCompaction(event: Compacted): void {
+		this.items.push({
+			kind: 'compaction',
+			key: `compaction:${this.items.length}`,
+			automatic: event.automatic,
+			before: event.before_tokens,
+			after: event.after_tokens,
+			summary: event.summary,
+			undone: false
+		});
+		this.contextTokens = event.after_tokens;
+		this.canUndoCompaction = true;
+	}
+
+	markCompactionUndone(key: string): void {
+		const item = this.items.find((i): i is CompactionItem => i.kind === 'compaction' && i.key === key);
+		if (item) item.undone = true;
+		this.canUndoCompaction = false;
 	}
 
 	apply(event: AgentEvent): void {
@@ -142,6 +175,9 @@ export class Transcript {
 					phase: event.phase,
 					summary: event.summary
 				});
+				break;
+			case 'compacted':
+				this.addCompaction(event);
 				break;
 			case 'error':
 				this.#errorShown = true;

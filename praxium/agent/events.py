@@ -76,6 +76,14 @@ class ApprovalResolved(BaseModel):
     decision: Decision
 
 
+class Compacted(BaseModel):
+    type: Literal["compacted"] = "compacted"
+    automatic: bool
+    before_tokens: int
+    after_tokens: int
+    summary: str
+
+
 class TurnFinished(BaseModel):
     type: Literal["turn_finished"] = "turn_finished"
     status: TurnStatus
@@ -96,6 +104,7 @@ Event = Annotated[
     | ToolFinished
     | ApprovalRequired
     | ApprovalResolved
+    | Compacted
     | TurnFinished
     | ErrorRaised,
     Field(discriminator="type"),
