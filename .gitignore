@@ -6,3 +6,4 @@ __pycache__/
 ui/node_modules/
 ui/.svelte-kit/
 test-results/
+.claude/
