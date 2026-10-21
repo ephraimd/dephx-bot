@@ -1,0 +1,8 @@
+.config/.vault
+.venv/
+__pycache__/
+.mypy_cache/
+.superpowers/
+ui/node_modules/
+ui/.svelte-kit/
+test-results/
