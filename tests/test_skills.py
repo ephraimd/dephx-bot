@@ -2,13 +2,13 @@ import asyncio
 
 import pytest
 
-from praxium.agent.approvals import ApprovalAnswer, ApprovalRequest
-from praxium.agent.phases import Phase
-from praxium.agent.prompt import build_system_prompt, phase_note
-from praxium.config import PACKAGE_DIR
-from praxium.model import estimate_tokens
-from praxium.tools import ToolContext, ToolError
-from praxium.tools.skills import SkillLibrary, make_skill_tool
+from dephx_bot.agent.approvals import ApprovalAnswer, ApprovalRequest
+from dephx_bot.agent.phases import Phase
+from dephx_bot.agent.prompt import build_system_prompt, phase_note
+from dephx_bot.config import PACKAGE_DIR
+from dephx_bot.model import estimate_tokens
+from dephx_bot.tools import ToolContext, ToolError
+from dephx_bot.tools.skills import SkillLibrary, make_skill_tool
 
 SKILLS_DIR = PACKAGE_DIR / "skills" / "senior-dephx"
 

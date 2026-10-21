@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from praxium.config import command_env
+from dephx_bot.config import command_env
 
 
 def test_drops_our_own_virtualenv_from_commands() -> None:
@@ -21,7 +21,7 @@ def test_drops_our_virtualenv_on_windows() -> None:
 
 def test_leaves_someone_elses_virtualenv_alone() -> None:
     env = {"VIRTUAL_ENV": "/work/.venv", "PATH": "/work/.venv/bin:/usr/bin"}
-    assert command_env(env, own_prefix="/opt/praxium", pathsep=":") == env
+    assert command_env(env, own_prefix="/opt/dephx-bot", pathsep=":") == env
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="symlinks need admin rights on Windows")

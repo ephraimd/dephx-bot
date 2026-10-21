@@ -2,7 +2,7 @@ import json
 from collections.abc import AsyncGenerator, Sequence
 from typing import Any
 
-from praxium.model import Message, ModelError, ModelReply, TextDelta, ToolCall, ToolSchema, Usage
+from dephx_bot.model import Message, ModelError, ModelReply, TextDelta, ToolCall, ToolSchema, Usage
 
 USAGE = Usage(1_000, 50, None, estimated=False)
 

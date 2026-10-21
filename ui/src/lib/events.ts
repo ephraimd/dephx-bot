@@ -1,4 +1,4 @@
-// Mirrors praxium/agent/events.py field for field. Change both together.
+// Mirrors dephx_bot/agent/events.py field for field. Change both together.
 
 export type Phase = 'evaluate' | 'ideate' | 'build' | 'test' | 'done';
 

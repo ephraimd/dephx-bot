@@ -2,14 +2,14 @@ import asyncio
 
 import pytest
 
-from praxium.agent.approvals import (
+from dephx_bot.agent.approvals import (
     ApprovalAnswer,
     ApprovalBroker,
     ApprovalCancelled,
     ApprovalRequest,
     Decision,
 )
-from praxium.errors import ApiError
+from dephx_bot.errors import ApiError
 
 pytestmark = pytest.mark.anyio
 

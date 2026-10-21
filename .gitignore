@@ -7,3 +7,4 @@ ui/node_modules/
 ui/.svelte-kit/
 test-results/
 .claude/
+private/

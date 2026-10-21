@@ -4,8 +4,8 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from praxium.app import build_api
-from praxium.config import PACKAGE_DIR, AppConfig
+from dephx_bot.app import build_api
+from dephx_bot.config import PACKAGE_DIR, AppConfig
 
 TOKEN = "t0k"
 HOST = "127.0.0.1:9999"

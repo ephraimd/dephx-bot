@@ -5,8 +5,8 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from praxium.errors import ApiError
-from praxium.settings.app_settings import AppSettingsStore, KeyStatus
+from dephx_bot.errors import ApiError
+from dephx_bot.settings.app_settings import AppSettingsStore, KeyStatus
 from tests.conftest import AUTH
 
 
@@ -96,3 +96,39 @@ def test_settings_route_error_shape(client: TestClient) -> None:
     response = client.put("/api/settings", headers=AUTH, json={"token_limit_per_chat": 10})
     assert response.status_code == 400
     assert response.json()["error"]["code"] == "token_limit_too_low"
+
+
+
+CUSTOM = {"base_url": "https://llm.example.com/v1", "model": "my-model", "context_window": 32_000, "max_output_tokens": 4_000}
+
+
+def test_custom_provider_is_saved_and_resolved(store: AppSettingsStore) -> None:
+    view = store.update(provider="custom", api_key="sk-custom", token_limit_per_chat=None, custom=CUSTOM)
+
+    assert view.provider == "custom"
+    assert view.custom is not None and view.custom.model == "my-model"
+    assert view.keys["custom"] == KeyStatus(is_set=True, prefix="sk-custo")
+    spec = store.provider_spec()
+    assert (spec.id, spec.base_url, spec.model, spec.max_output_tokens) == ("custom", "https://llm.example.com/v1", "my-model", 4_000)
+    assert spec.history_budget == 28_000
+    assert store.api_key_for("custom") == "sk-custom"
+
+
+def test_custom_provider_needs_its_details(store: AppSettingsStore) -> None:
+    with pytest.raises(ApiError) as error:
+        store.update(provider="custom", api_key=None, token_limit_per_chat=None)
+    assert error.value.code == "custom_provider_incomplete"
+
+
+@pytest.mark.parametrize(
+    ("field", "value"), [("base_url", "ftp://llm.example.com"), ("model", "  "), ("context_window", 1_000)]
+)
+def test_custom_provider_details_are_checked(store: AppSettingsStore, field: str, value: object) -> None:
+    with pytest.raises(ApiError) as error:
+        store.update(provider="custom", api_key=None, token_limit_per_chat=None, custom={**CUSTOM, field: value})
+    assert error.value.code == "invalid_custom_provider"
+
+
+def test_custom_provider_appears_in_the_choices(store: AppSettingsStore) -> None:
+    ids = [option.id for option in store.view().providers]
+    assert ids[-1] == "custom"

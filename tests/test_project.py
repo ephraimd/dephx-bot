@@ -3,12 +3,12 @@ from pathlib import Path
 
 import pytest
 
-from praxium.errors import ApiError
-from praxium.settings.project import open_project
+from dephx_bot.errors import ApiError
+from dephx_bot.settings.project import open_project
 
 
 def write_settings(root: Path, data: dict[str, object]) -> Path:
-    path = root / ".praxium" / "settings.json"
+    path = root / ".dephx" / "settings.json"
     path.parent.mkdir(exist_ok=True)
     path.write_text(json.dumps(data))
     return path
@@ -43,7 +43,7 @@ def test_allow_always_persists_and_keeps_other_keys(tmp_path: Path) -> None:
 
 def test_allow_always_creates_the_settings_file(tmp_path: Path) -> None:
     open_project(str(tmp_path)).allow_always("pytest")
-    saved = json.loads((tmp_path / ".praxium" / "settings.json").read_text())
+    saved = json.loads((tmp_path / ".dephx" / "settings.json").read_text())
     assert saved == {"allowed_commands": ["pytest"]}
 
 
@@ -63,8 +63,8 @@ def test_missing_folder_rejected(tmp_path: Path) -> None:
 
 
 def test_unreadable_settings_rejected(tmp_path: Path) -> None:
-    (tmp_path / ".praxium").mkdir()
-    (tmp_path / ".praxium" / "settings.json").write_text("{not json")
+    (tmp_path / ".dephx").mkdir()
+    (tmp_path / ".dephx" / "settings.json").write_text("{not json")
     with pytest.raises(ApiError) as error:
         open_project(str(tmp_path))
     assert error.value.code == "bad_project_settings"

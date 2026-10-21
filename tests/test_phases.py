@@ -1,6 +1,6 @@
 import pytest
 
-from praxium.agent.phases import ADVANCE_PHASE, PHASE_TOOLS, Phase, PhaseError, PhaseMachine
+from dephx_bot.agent.phases import ADVANCE_PHASE, PHASE_TOOLS, Phase, PhaseError, PhaseMachine
 
 
 def machine_in(phase: Phase) -> PhaseMachine:

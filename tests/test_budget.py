@@ -2,8 +2,8 @@ import json
 
 import pytest
 
-from praxium.agent.budget import ELIDED_OUTPUT, ContextFull, TokenLedger, estimate_messages, trim_history
-from praxium.model import Message, ToolCall, Usage
+from dephx_bot.agent.budget import ELIDED_OUTPUT, ContextFull, TokenLedger, estimate_messages, trim_history
+from dephx_bot.model import Message, ToolCall, Usage
 
 
 def tool_turn(call_id: str, name: str, arguments: str, output: str, pinned: bool = False) -> list[Message]:

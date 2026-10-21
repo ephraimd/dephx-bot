@@ -20,7 +20,7 @@
 			settings = await api<SettingsView>('GET', '/api/settings');
 			project = (await api<ChatState>('GET', '/api/chat/state')).project;
 		} catch (failure) {
-			loadError = failure instanceof Error ? failure.message : 'Could not reach Praxium.';
+			loadError = failure instanceof Error ? failure.message : 'Could not reach dephx-bot.';
 		}
 	});
 </script>
@@ -28,12 +28,12 @@
 {#if loadError}
 	<main class="grid h-dvh place-items-center p-6 text-sm text-destructive" role="alert">{loadError}</main>
 {:else if !settings}
-	<main class="grid h-dvh place-items-center p-6 text-sm text-muted-foreground">Starting Praxium...</main>
+	<main class="grid h-dvh place-items-center p-6 text-sm text-muted-foreground">Starting dephx-bot...</main>
 {:else if !project && !hasKey}
 	<main class="mx-auto grid max-w-md gap-6 px-6 py-16">
 		<div>
 			<h1 class="text-lg font-semibold">Connect a model provider</h1>
-			<p class="mt-1 text-sm text-muted-foreground">Praxium needs an API key to talk to the model.</p>
+			<p class="mt-1 text-sm text-muted-foreground">dephx-bot needs an API key to talk to the model.</p>
 		</div>
 		<SettingsForm {settings} onSaved={(view) => (settings = view)} />
 	</main>

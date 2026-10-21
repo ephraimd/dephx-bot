@@ -8,8 +8,8 @@ from typing import Any
 import httpx2
 import pytest
 
-from praxium.model import Message, ModelError, ModelReply, TextDelta, ToolCall, Usage
-from praxium.providers import PROVIDERS, ClientPool, OpenAICompatibleClient
+from dephx_bot.model import Message, ModelError, ModelReply, TextDelta, ToolCall, Usage
+from dephx_bot.providers import PROVIDERS, ClientPool, OpenAICompatibleClient
 
 pytestmark = pytest.mark.anyio
 

@@ -8,10 +8,10 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from praxium.app import build_api
-from praxium.config import AppConfig
-from praxium.model import ModelClient, ModelReply
-from praxium.providers import ProviderSpec
+from dephx_bot.app import build_api
+from dephx_bot.config import AppConfig
+from dephx_bot.model import ModelClient, ModelReply
+from dephx_bot.providers import ProviderSpec
 from tests.conftest import AUTH, HOST, TOKEN
 from tests.scripted_model import ScriptedModel, call, text
 
@@ -41,7 +41,7 @@ class Links:
 
 @pytest.fixture
 def keyed_config(config: AppConfig) -> AppConfig:
-    return replace(config, env_api_keys={"DEEPSEEK_API_KEY": "sk-test", "PRAXIUM_API_KEY": "px-test"})
+    return replace(config, env_api_keys={"DEEPSEEK_API_KEY": "sk-test", "PRAXIOM_API_KEY": "px-test"})
 
 
 def make_client(config: AppConfig, models: Models, links: Links | None = None) -> TestClient:
@@ -200,8 +200,8 @@ def test_chat_token_limit_is_checked_against_the_chat_provider(keyed_config: App
 
 
 def test_trust_flow(keyed_config: AppConfig, project: Path) -> None:
-    (project / ".praxium").mkdir()
-    (project / ".praxium" / "settings.json").write_text('{"allowed_commands": ["pytest"]}')
+    (project / ".dephx").mkdir()
+    (project / ".dephx" / "settings.json").write_text('{"allowed_commands": ["pytest"]}')
     with make_client(keyed_config, Models()) as client:
         opened = post(client, "/api/project/open", {"path": str(project)})
         trusted = post(client, "/api/project/trust")
@@ -293,3 +293,18 @@ def test_compact_is_refused_while_a_turn_runs(keyed_config: AppConfig, project: 
         response = client.post("/api/chat/compact", headers=AUTH, json={})
         post(client, "/api/chat/stop")
     assert response.status_code == 409 and response.json()["error"]["code"] == "turn_running"
+
+
+
+def test_a_chat_uses_the_custom_provider(keyed_config: AppConfig, project: Path) -> None:
+    models = Models([text("hello")])
+    with make_client(keyed_config, models) as client:
+        client.put("/api/settings", headers=AUTH, json={
+            "provider": "custom", "api_key": "sk-custom",
+            "custom": {"base_url": "https://llm.example.com/v1", "model": "my-model", "context_window": 32000, "max_output_tokens": 4000},
+        })
+        post(client, "/api/project/open", {"path": str(project)})
+        list(events(client, post(client, "/api/chat/messages", {"text": "hi"})["turn_id"]))
+        state = client.get("/api/chat/state", headers=AUTH).json()
+    assert models.providers == ["custom"]
+    assert state["provider"] == "custom" and state["context_budget"] == 28_000

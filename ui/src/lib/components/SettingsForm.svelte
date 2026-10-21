@@ -11,6 +11,9 @@
 	let provider = $state(untrack(() => settings.provider));
 	let apiKey = $state('');
 	let limit = $state(untrack(() => settings.token_limit_per_chat));
+	let custom = $state(
+		untrack(() => settings.custom ?? { base_url: '', model: '', context_window: 128000, max_output_tokens: 8192 })
+	);
 	let saving = $state(false);
 	let result: { ok: boolean; text: string } | null = $state(null);
 
@@ -23,6 +26,7 @@
 		result = null;
 		try {
 			const body: Record<string, unknown> = { provider, token_limit_per_chat: limit };
+			if (provider === 'custom') body.custom = custom;
 			if (apiKey.trim()) body.api_key = apiKey;
 			const view = await api<SettingsView>('PUT', '/api/settings', body);
 			apiKey = '';
@@ -49,6 +53,32 @@
 		</Select.Root>
 	</div>
 
+	{#if provider === 'custom'}
+		<div class="grid gap-3 rounded-md border p-3">
+			<p class="text-xs text-muted-foreground">
+				Any service that offers the OpenAI chat completions API works here, including a model you run yourself.
+			</p>
+			<div class="grid gap-1.5">
+				<label class="text-sm font-medium" for="custom-url">API address</label>
+				<Input id="custom-url" placeholder="https://api.example.com/v1" bind:value={custom.base_url} />
+			</div>
+			<div class="grid gap-1.5">
+				<label class="text-sm font-medium" for="custom-model">Model name</label>
+				<Input id="custom-model" placeholder="As the provider spells it" bind:value={custom.model} />
+			</div>
+			<div class="grid grid-cols-2 gap-3">
+				<div class="grid gap-1.5">
+					<label class="text-sm font-medium" for="custom-window">Context window (tokens)</label>
+					<Input id="custom-window" type="number" step="1000" bind:value={custom.context_window} />
+				</div>
+				<div class="grid gap-1.5">
+					<label class="text-sm font-medium" for="custom-output">Maximum reply (tokens)</label>
+					<Input id="custom-output" type="number" step="512" bind:value={custom.max_output_tokens} />
+				</div>
+			</div>
+		</div>
+	{/if}
+
 	<div class="grid gap-1.5">
 		<label class="text-sm font-medium" for="api-key">{option?.label} API key</label>
 		<Input id="api-key" type="password" autocomplete="off" placeholder="Paste your API key" bind:value={apiKey} />
@@ -60,7 +90,7 @@
 
 	<div class="grid gap-1.5">
 		<label class="text-sm font-medium" for="token-limit">Token limit per chat</label>
-		<Input id="token-limit" type="number" min={option?.min_token_limit} step="1000" bind:value={limit} />
+		<Input id="token-limit" type="number" min={option?.min_token_limit || undefined} step="1000" bind:value={limit} />
 		<p class="text-xs text-muted-foreground">
 			Each chat stops before using more than this. Minimum {option?.min_token_limit.toLocaleString('en-US')} for
 			{option?.label}, the size of one full request.

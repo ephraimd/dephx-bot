@@ -8,8 +8,8 @@ from typing import Any, TypeVar
 
 import pytest
 
-from praxium.agent.approvals import ApprovalAnswer, ApprovalBroker, Decision
-from praxium.agent.events import (
+from dephx_bot.agent.approvals import ApprovalAnswer, ApprovalBroker, Decision
+from dephx_bot.agent.events import (
     ApprovalRequired,
     ApprovalResolved,
     Compacted,
@@ -23,14 +23,14 @@ from praxium.agent.events import (
     TurnStatus,
     UsageReported,
 )
-from praxium.agent.loop import ChatSession
-from praxium.agent.phases import Phase
-from praxium.model import Message, ModelError, ModelReply, TextDelta, ToolCall, ToolSchema, Usage
-from praxium.providers import PROVIDERS
-from praxium.settings.project import open_project
-from praxium.tools import Tool, ToolContext, ToolResult
-from praxium.tools.files import ProjectPaths, make_file_tools
-from praxium.tools.shell import make_shell_tool
+from dephx_bot.agent.loop import ChatSession
+from dephx_bot.agent.phases import Phase
+from dephx_bot.model import Message, ModelError, ModelReply, TextDelta, ToolCall, ToolSchema, Usage
+from dephx_bot.providers import PROVIDERS
+from dephx_bot.settings.project import open_project
+from dephx_bot.tools import Tool, ToolContext, ToolResult
+from dephx_bot.tools.files import ProjectPaths, make_file_tools
+from dephx_bot.tools.shell import make_shell_tool
 from tests.scripted_model import ScriptedModel, call, text
 
 pytestmark = pytest.mark.anyio
@@ -352,3 +352,39 @@ async def test_history_near_the_window_is_compacted_automatically() -> None:
     assert turn.events.index(compacted[0]) < turn.events.index(turn.of(TokenDelta)[0])
     assert status is TurnStatus.WAITING_FOR_USER
     assert session.can_undo_compaction
+
+
+
+async def test_skill_text_reaches_the_model_but_not_the_ui(tmp_path: Path) -> None:
+    from dephx_bot.config import PACKAGE_DIR
+    from dephx_bot.tools.skills import SkillLibrary, make_skill_tool
+
+    library = SkillLibrary(PACKAGE_DIR / "skills" / "senior-dephx")
+    session, _ = session_for(tmp_path, [call("load_skill", {"name": "verify-for-real"}), text("ok")])
+    session.tools["load_skill"] = make_skill_tool(library)
+    turn = Turn(session)
+
+    await turn.run("verify things")
+
+    shown = turn.of(ToolFinished)[0]
+    assert "A build is not a verification." not in shown.output
+    assert "verify-for-real" in shown.output
+    assert shown.added_tokens > 1_000  # the meter still counts what the model really received
+    sent = next(m for m in session.messages if m.role == "tool")
+    assert "A build is not a verification." in sent.content
+
+
+
+async def test_long_skills_reach_the_model_whole(tmp_path: Path) -> None:
+    from dephx_bot.config import PACKAGE_DIR
+    from dephx_bot.tools.skills import SkillLibrary, make_skill_tool
+
+    library = SkillLibrary(PACKAGE_DIR / "skills" / "senior-dephx")
+    full = library.load("ui-craft")
+    assert len(full) > 12_000
+    session, _ = session_for(tmp_path, [call("load_skill", {"name": "ui-craft"}), text("ok")])
+    session.tools["load_skill"] = make_skill_tool(library)
+
+    await Turn(session).run("style it")
+
+    assert next(m for m in session.messages if m.role == "tool").content == full

@@ -6,9 +6,9 @@ from typing import Any
 
 import pytest
 
-from praxium.agent.approvals import ApprovalAnswer, ApprovalRequest
-from praxium.tools import MAX_TOOL_OUTPUT_CHARS, Tool, ToolContext, ToolError, ToolResult, cap_output
-from praxium.tools.files import ProjectPaths, is_within, make_file_tools
+from dephx_bot.agent.approvals import ApprovalAnswer, ApprovalRequest
+from dephx_bot.tools import MAX_TOOL_OUTPUT_CHARS, Tool, ToolContext, ToolError, ToolResult, cap_output
+from dephx_bot.tools.files import ProjectPaths, is_within, make_file_tools
 
 pytestmark = pytest.mark.anyio
 
@@ -73,7 +73,7 @@ def test_symlink_escape_refused(tmp_path: Path, paths: ProjectPaths, project: Pa
 
 
 @pytest.mark.parametrize(
-    "path", [".git/hooks/pre-commit", ".praxium/settings.json", ".GIT/config", "sub/.git/hooks/x"]
+    "path", [".git/hooks/pre-commit", ".dephx/settings.json", ".GIT/config", "sub/.git/hooks/x"]
 )
 def test_protected_dirs_refused(paths: ProjectPaths, path: str) -> None:
     with pytest.raises(ToolError, match="protected"):
@@ -152,7 +152,7 @@ async def test_write_creates_parents_and_reports_write(tools: dict[str, Tool], p
 
 async def test_write_into_protected_dir_refused(tools: dict[str, Tool]) -> None:
     with pytest.raises(ToolError, match="protected"):
-        await run(tools, "write_file", path=".praxium/settings.json", content="{}")
+        await run(tools, "write_file", path=".dephx/settings.json", content="{}")
 
 
 async def test_edit_replaces_single_match(tools: dict[str, Tool], project: Path) -> None:
@@ -234,7 +234,7 @@ async def test_very_large_file_is_refused(tools: dict[str, Tool], project: Path)
         await run(tools, "read_file", path="big.log")
 
 
-@pytest.mark.parametrize("path", [".git./hooks/pre-commit", ".praxium /settings.json"])
+@pytest.mark.parametrize("path", [".git./hooks/pre-commit", ".dephx /settings.json"])
 def test_windows_trailing_dots_and_spaces_cannot_reach_protected_dirs(paths: ProjectPaths, path: str) -> None:
     with pytest.raises(ToolError, match="protected"):
         paths.resolve(path)

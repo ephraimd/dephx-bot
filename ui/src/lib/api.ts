@@ -1,6 +1,6 @@
 import type { AgentEvent, ApprovalRequired, Phase } from './events';
 
-const TOKEN_KEY = 'praxium-launch-token';
+const TOKEN_KEY = 'dephx-bot-launch-token';
 let token = '';
 
 /**
@@ -87,15 +87,22 @@ export async function streamTurn(
 	}
 }
 
-// Response shapes, mirroring the Pydantic models in praxium/settings and praxium/chat.
+// Response shapes, mirroring the Pydantic models in dephx_bot/settings and dephx_bot/chat.
 
 export type KeyStatus = { is_set: boolean; prefix: string | null };
 export type ProviderOption = { id: string; label: string; min_token_limit: number };
+export type CustomProvider = {
+	base_url: string;
+	model: string;
+	context_window: number;
+	max_output_tokens: number;
+};
 export type SettingsView = {
 	provider: string;
 	providers: ProviderOption[];
 	keys: Record<string, KeyStatus>;
 	token_limit_per_chat: number;
+	custom: CustomProvider | null;
 };
 export type ProjectView = { name: string; root: string; needs_trust: string[] };
 export type ChatState = {

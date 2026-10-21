@@ -3,7 +3,7 @@ import tailwindcss from '@tailwindcss/vite';
 import adapter from '@sveltejs/adapter-static';
 import { sveltekit } from '@sveltejs/kit/vite';
 
-// Must match DEV_PORT in praxium/config.py.
+// Must match DEV_PORT in dephx_bot/config.py.
 const DEV_API = 'http://127.0.0.1:8765';
 
 export default defineConfig({
@@ -16,7 +16,7 @@ export default defineConfig({
 					filename.split(/[/\\]/).includes('node_modules') ? undefined : true
 			},
 			// The Python package serves the built UI, so the build lands inside it.
-			adapter: adapter({ pages: '../praxium/static', assets: '../praxium/static' }),
+			adapter: adapter({ pages: '../dephx_bot/static', assets: '../dephx_bot/static' }),
 			csp: {
 				mode: 'hash',
 				directives: {

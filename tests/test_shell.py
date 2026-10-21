@@ -7,10 +7,10 @@ from pathlib import Path
 
 import pytest
 
-from praxium.agent.approvals import ApprovalAnswer, ApprovalRequest, Decision
-from praxium.settings.project import open_project
-from praxium.tools import ToolContext, ToolError
-from praxium.tools.shell import make_shell_tool, run_shell
+from dephx_bot.agent.approvals import ApprovalAnswer, ApprovalRequest, Decision
+from dephx_bot.settings.project import open_project
+from dephx_bot.tools import ToolContext, ToolError
+from dephx_bot.tools.shell import make_shell_tool, run_shell
 
 pytestmark = pytest.mark.anyio
 
@@ -148,7 +148,7 @@ async def test_always_allow_persists_then_skips_approval(tmp_path: Path) -> None
 
     assert result.ok
     assert second.asked == []
-    saved = json.loads((tmp_path / ".praxium" / "settings.json").read_text())
+    saved = json.loads((tmp_path / ".dephx" / "settings.json").read_text())
     assert saved["allowed_commands"] == [command]
 
 
@@ -169,7 +169,7 @@ async def test_shell_tool_passes_its_environment(tmp_path: Path) -> None:
 
 
 async def test_runaway_output_is_stopped(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("praxium.tools.shell.MAX_OUTPUT_BYTES", 1_000_000)
+    monkeypatch.setattr("dephx_bot.tools.shell.MAX_OUTPUT_BYTES", 1_000_000)
     code = script(tmp_path, "yes.py", "import sys\nwhile True:\n    sys.stdout.write('y' * 10000)\n")
     started = time.monotonic()
     result = await run_shell(python(code), tmp_path, timeout=60, cancel=asyncio.Event())

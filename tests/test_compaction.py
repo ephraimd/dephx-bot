@@ -2,12 +2,12 @@ import json
 
 import pytest
 
-from praxium.agent.approvals import ApprovalAnswer, ApprovalRequest, Decision
-from praxium.agent.compaction import CompactionNotAffordable, WorkLog, split_history
-from praxium.agent.loop import ChatSession
-from praxium.model import Message, ModelReply, ToolCall, Usage
-from praxium.providers import PROVIDERS
-from praxium.tools import ToolResult
+from dephx_bot.agent.approvals import ApprovalAnswer, ApprovalRequest, Decision
+from dephx_bot.agent.compaction import CompactionNotAffordable, WorkLog, split_history
+from dephx_bot.agent.loop import ChatSession
+from dephx_bot.model import Message, ModelReply, ToolCall, Usage
+from dephx_bot.providers import PROVIDERS
+from dephx_bot.tools import ToolResult
 from tests.scripted_model import ScriptedModel
 
 pytestmark = pytest.mark.anyio

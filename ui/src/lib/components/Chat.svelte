@@ -282,7 +282,7 @@
 			<Dialog.Title>Compact this chat</Dialog.Title>
 			<Dialog.Description>
 				The older part of the conversation is replaced by a summary. Files changed, commands run and your approvals
-				are copied from Praxium's own records; the model writes the rest. This uses one request to the model, which
+				are copied from dephx-bot's own records; the model writes the rest. This uses one request to the model, which
 				counts against the chat's token limit. You can undo it until you send your next message.
 			</Dialog.Description>
 		</Dialog.Header>
