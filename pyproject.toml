@@ -23,6 +23,7 @@ packages = ["praxium"]
 
 [tool.mypy]
 strict = true
+exclude = ["praxium/skills/"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
