@@ -22,6 +22,10 @@
 		approve: 'You approved the plan.',
 		request_changes: 'You asked for changes.'
 	};
+	const answeredSettings: Partial<Record<Decision, string>> = {
+		approve: 'You applied this change.',
+		deny: 'You kept the settings as they were.'
+	};
 
 	async function answer(decision: Decision, text?: string) {
 		pending = true;
@@ -41,13 +45,18 @@
 		<h3 class="mb-2 font-medium">The agent wants to run a command</h3>
 		<!-- Wrapped, never scrolled: the user must see the whole command they approve. -->
 		<pre class="mb-3 rounded bg-muted p-2 font-mono text-xs break-all whitespace-pre-wrap">{item.text}</pre>
+	{:else if item.approvalKind === 'settings'}
+		<h3 class="mb-2 font-medium">The agent wants to change this project's settings</h3>
+		<pre class="mb-3 rounded bg-muted p-2 font-mono text-xs break-all whitespace-pre-wrap">{item.text}</pre>
 	{:else}
 		<h3 class="mb-2 font-medium">The agent's plan needs your approval</h3>
 		<div class="prose-chat mb-3 max-h-80 overflow-auto rounded bg-muted/40 p-3">{@html renderMarkdown(item.text)}</div>
 	{/if}
 
 	{#if item.decision}
-		<p class="text-muted-foreground">{answered[item.decision]}</p>
+		<p class="text-muted-foreground">
+			{(item.approvalKind === 'settings' && answeredSettings[item.decision]) || answered[item.decision]}
+		</p>
 	{:else if item.expired}
 		<p class="text-muted-foreground">This question closed when the turn ended.</p>
 	{:else if item.approvalKind === 'command'}
@@ -61,6 +70,11 @@
 		<p class="mt-2 text-xs text-muted-foreground">
 			"Always allow" runs whatever this command runs, including code the agent wrote.
 		</p>
+	{:else if item.approvalKind === 'settings'}
+		<div class="flex gap-2">
+			<Button size="sm" disabled={pending} onclick={() => answer('approve')}>Apply</Button>
+			<Button size="sm" variant="ghost" disabled={pending} onclick={() => answer('deny')}>Deny</Button>
+		</div>
 	{:else if askingForChanges}
 		<Textarea bind:value={feedback} rows={3} placeholder="What should change in the plan?" />
 		<div class="mt-2 flex gap-2">

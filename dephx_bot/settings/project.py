@@ -20,8 +20,9 @@ class ProjectView(BaseModel):
 class Project:
     """An open project folder and the commands the user allowed to run without asking.
 
-    The allow-list is read from disk once, at open, and only grows through the UI after
-    that. A command that rewrites the settings file therefore cannot grant itself anything.
+    The allow-list is read from disk once, at open, and only changes through the user after
+    that: an approval in the UI, or a settings change the user applied. A command that
+    rewrites the settings file therefore cannot grant itself anything.
     """
 
     def __init__(self, root: Path, pending_trust: list[str]) -> None:
@@ -48,6 +49,16 @@ class Project:
             allowed.append(command)
         write_text_atomic(self.settings_path, json.dumps(data, indent=2) + "\n")
         self._allowed.add(command)
+
+    def allowed_commands(self) -> list[str]:
+        return list(_read_settings(self.settings_path).get("allowed_commands", []))
+
+    def set_allowed_commands(self, commands: list[str]) -> None:
+        """Replace the allow-list with one the user approved in full."""
+        data = _read_settings(self.settings_path)
+        data["allowed_commands"] = commands
+        write_text_atomic(self.settings_path, json.dumps(data, indent=2) + "\n")
+        self._allowed = set(commands)
 
     def view(self) -> ProjectView:
         return ProjectView(name=self.name, root=str(self.root), needs_trust=self.pending_trust)

@@ -17,6 +17,7 @@ from dephx_bot.providers import ProviderSpec
 from dephx_bot.settings.app_settings import AppSettingsStore
 from dephx_bot.settings.project import Project, ProjectView, open_project
 from dephx_bot.tools.files import ProjectPaths, make_file_tools
+from dephx_bot.tools.project_settings import make_project_settings_tool
 from dephx_bot.tools.shell import make_shell_tool
 from dephx_bot.tools.skills import SkillLibrary, make_skill_tool
 
@@ -219,6 +220,7 @@ class ChatService:
         tools = [
             *make_file_tools(ProjectPaths(project.root)),
             make_shell_tool(project, self.command_env),
+            make_project_settings_tool(project),
             make_skill_tool(self.skills),
         ]
         prompt = build_system_prompt(library=self.skills, os_name=self.os_name, shell_name=self.shell_name)

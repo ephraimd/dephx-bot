@@ -1,6 +1,6 @@
 from enum import StrEnum
 
-from dephx_bot.tools import LOAD_SKILL, READ_ONLY_FILE_TOOLS, RUN_COMMAND, WRITE_FILE_TOOLS
+from dephx_bot.tools import EDIT_PROJECT_SETTINGS, LOAD_SKILL, READ_ONLY_FILE_TOOLS, RUN_COMMAND, WRITE_FILE_TOOLS
 
 
 class Phase(StrEnum):
@@ -13,13 +13,14 @@ class Phase(StrEnum):
 
 ADVANCE_PHASE = "advance_phase"
 
-_LOOKING = frozenset({*READ_ONLY_FILE_TOOLS, LOAD_SKILL, ADVANCE_PHASE})
+# Settings changes are approved one by one, so they are allowed whatever the phase.
+_LOOKING = frozenset({*READ_ONLY_FILE_TOOLS, LOAD_SKILL, EDIT_PROJECT_SETTINGS, ADVANCE_PHASE})
 
 PHASE_TOOLS: dict[Phase, frozenset[str]] = {
     Phase.EVALUATE: _LOOKING,
     Phase.IDEATE: _LOOKING,
     Phase.BUILD: _LOOKING | {*WRITE_FILE_TOOLS, RUN_COMMAND},
-    Phase.TEST: frozenset({*READ_ONLY_FILE_TOOLS, RUN_COMMAND, ADVANCE_PHASE}),
+    Phase.TEST: frozenset({*READ_ONLY_FILE_TOOLS, RUN_COMMAND, EDIT_PROJECT_SETTINGS, ADVANCE_PHASE}),
     Phase.DONE: frozenset(),
 }
 

@@ -80,7 +80,7 @@ def make_shell_tool(project: Project, env: Mapping[str, str] | None = None) -> T
         command = string_arg(args, "command").strip()
         if not command:
             raise ToolError("The command is empty.")
-        hidden = _hidden_characters(command)
+        hidden = hidden_characters(command)
         if hidden:
             # The user approves what they see; invisible or direction-changing characters would hide what runs.
             raise ToolError(f"The command contains hidden characters ({hidden}). Rewrite it with plain text.")
@@ -131,7 +131,7 @@ def _start(command: str, cwd: Path, output: IO[bytes], env: Mapping[str, str] | 
     )
 
 
-def _hidden_characters(command: str) -> str:
+def hidden_characters(command: str) -> str:
     """Control and format characters (bidi overrides, zero-width spaces), named as U+XXXX."""
     found = {ch for ch in command if unicodedata.category(ch) in ("Cc", "Cf") and ch not in "\t\n\r"}
     return ", ".join(f"U+{ord(ch):04X}" for ch in sorted(found))

@@ -11,6 +11,7 @@ READ_ONLY_FILE_TOOLS = ("list_files", "read_file", "search_text")
 WRITE_FILE_TOOLS = ("write_file", "edit_file")
 RUN_COMMAND = "run_command"
 LOAD_SKILL = "load_skill"
+EDIT_PROJECT_SETTINGS = "edit_project_settings"
 
 MAX_TOOL_OUTPUT_CHARS = 12_000
 # The tail gets more room than the head because test runners print their summary last.

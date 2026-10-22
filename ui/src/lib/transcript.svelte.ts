@@ -1,5 +1,5 @@
 import type { ChatState } from './api';
-import type { AgentEvent, Compacted, Decision, Phase, TurnStatus, UsageReported } from './events';
+import type { AgentEvent, ApprovalKind, Compacted, Decision, Phase, TurnStatus, UsageReported } from './events';
 
 export type UserItem = { kind: 'user'; key: string; text: string };
 export type AssistantItem = {
@@ -23,7 +23,7 @@ export type ApprovalItem = {
 	kind: 'approval';
 	key: string;
 	approvalId: string;
-	approvalKind: 'command' | 'plan';
+	approvalKind: ApprovalKind;
 	text: string;
 	decision: Decision | null;
 	expired: boolean;

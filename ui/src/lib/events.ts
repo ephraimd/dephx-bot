@@ -13,6 +13,7 @@ export type TurnStatus =
 	| 'failed';
 
 export type Decision = 'run_once' | 'always' | 'deny' | 'approve' | 'request_changes';
+export type ApprovalKind = 'command' | 'plan' | 'settings';
 
 export type PhaseChanged = { type: 'phase_changed'; phase: Phase; summary: string };
 export type TokenDelta = { type: 'token'; step: number; text: string };
@@ -41,7 +42,7 @@ export type ToolFinished = {
 export type ApprovalRequired = {
 	type: 'approval_required';
 	approval_id: string;
-	kind: 'command' | 'plan';
+	kind: ApprovalKind;
 	text: string;
 };
 export type ApprovalResolved = { type: 'approval_resolved'; approval_id: string; decision: Decision };

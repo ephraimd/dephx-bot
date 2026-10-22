@@ -16,11 +16,12 @@ class Decision(StrEnum):
     REQUEST_CHANGES = "request_changes"
 
 
-ApprovalKind = Literal["command", "plan"]
+ApprovalKind = Literal["command", "plan", "settings"]
 
 DECISIONS_BY_KIND: dict[ApprovalKind, frozenset[Decision]] = {
     "command": frozenset({Decision.RUN_ONCE, Decision.ALWAYS, Decision.DENY}),
     "plan": frozenset({Decision.APPROVE, Decision.REQUEST_CHANGES}),
+    "settings": frozenset({Decision.APPROVE, Decision.DENY}),
 }
 
 
