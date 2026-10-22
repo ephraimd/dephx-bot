@@ -3,6 +3,7 @@ name = "dephx-bot"
 version = "0.1.0"
 description = "An AI coding harness that enforces an engineering process with a phase engine and works with any OpenAI-compatible model"
 readme = "README.md"
+authors = [{ name = "Adedamola Daniel" }]
 license = "Apache-2.0"
 license-files = ["LICENSE", "NOTICE"]
 requires-python = ">=3.12"

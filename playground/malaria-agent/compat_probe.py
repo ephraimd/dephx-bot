@@ -8,7 +8,7 @@ Each probe exercises one feature and reports one of:
 
     PROVIDER=praxiom uv run python compat_probe.py
 
-Results are printed and saved to docs/reports/data/compat-<provider>.json.
+Results are printed and saved to results/compat-<provider>.json next to this file.
 The SDK's automatic retries are switched off so we see the provider's raw behaviour.
 """
 
@@ -18,6 +18,7 @@ import uuid
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass
+from pathlib import Path
 from typing import Literal
 
 import openai
@@ -343,7 +344,7 @@ def main() -> None:
         results.append(result)
         print(f"[{result.status:4}] {name:26} {result.seconds:6.2f}s  {result.detail[:160]}")
 
-    out = PROJECT_ROOT / "docs" / "reports" / "data" / f"compat-{settings.provider}.json"
+    out = Path(__file__).resolve().parent / "results" / f"compat-{settings.provider}.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(
         {"provider": settings.provider, "model": settings.model, "base_url": settings.base_url,

@@ -4,7 +4,7 @@ and compare the balance before and after with the published prices.
     uv run python image_probe.py
 
 Spends about ESP 0.083 (one 1K image + one edit). Error requests should be free.
-Outputs go to docs/reports/data/images/.
+Outputs go to results/images/ next to this file.
 """
 
 import base64
@@ -18,9 +18,9 @@ import httpx
 import openai
 from openai import OpenAI
 
-from config import PROJECT_ROOT, Settings, load_settings
+from config import Settings, load_settings
 
-OUT_DIR = PROJECT_ROOT / "docs" / "reports" / "data" / "images"
+OUT_DIR = Path(__file__).resolve().parent / "results" / "images"
 IMAGE_TIMEOUT_SECONDS = 180.0  # docs: keep the HTTP timeout at 2 minutes or more
 EXPECTED_SPEND_ESP = 0.04 + 0.043
 

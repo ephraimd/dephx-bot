@@ -25,7 +25,7 @@ FETCH_TIMEOUT_SECONDS = 15.0
 MAX_PAGE_BYTES = 2_000_000
 # Cap on page text sent to the summariser, to keep its request small and cheap.
 MAX_TEXT_CHARS = 30_000
-USER_AGENT = "praxium-learning-agent/0.1"
+USER_AGENT = "dephx-malaria-agent/0.1"
 
 
 class ToolError(Exception):

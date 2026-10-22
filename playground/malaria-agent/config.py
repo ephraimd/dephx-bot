@@ -14,7 +14,7 @@ from pathlib import Path
 
 from dotenv import dotenv_values
 
-# learning/01-malaria-agent/config.py -> project root is two folders up.
+# playground/malaria-agent/config.py -> project root is two folders up.
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 VAULT_PATH = PROJECT_ROOT / ".config" / ".vault"
 DEFAULT_PROVIDER = "deepseek"

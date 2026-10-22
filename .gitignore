@@ -11,3 +11,4 @@ private/
 # Working notes and raw benchmark data; the finished results are in REPORT.md.
 docs/reports/
 bench/
+docs/tutorials/

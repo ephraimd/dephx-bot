@@ -1,7 +1,7 @@
 [project]
 name = "malaria-agent"
 version = "0.1.0"
-description = "A minimal tool-using agent, built to learn the agent loop"
+description = "A small tool-using agent for malaria questions, used to test Praxiom AI"
 requires-python = ">=3.12"
 dependencies = [
     "openai>=1.50",

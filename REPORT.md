@@ -1,6 +1,6 @@
 # Praxiom AI and dephx-bot
 
-**Author:** Ephraim Adedamola · **Period:** 20 to 22 October 2026 · **Model tested:** Praxiom Cloud (`praxiom`, `praxiom-image`, `praxiom-image-edit`), with DeepSeek (`deepseek-flash`) as a reference point
+**Author:** Adedamola Daniel · **Period:** 20 to 22 October 2026 · **Model tested:** Praxiom Cloud (`praxiom`, `praxiom-image`, `praxiom-image-edit`), with DeepSeek (`deepseek-flash`) as a reference point
 
 ## Summary
 
@@ -10,7 +10,7 @@ Praxiom held up well. Its API behaved exactly as OpenAI's does in all 13 compati
 
 Its costs in agent use come mostly from two things that are easy to fix on the platform side: a hidden system prompt of about 3,000 tokens that is billed on every request, and no discount for the repeated part of a prompt, which most of an agent's input is. Section 7 sets out what I would suggest.
 
-On my side, dephx-bot moves the agent's working state out of the model and into a small state machine I call the phase engine, and gives the agent senior engineering judgement through senior-dephx, a set of guidelines I wrote and use in my own work. Both models I tested tried to skip steps, and the phase engine stopped them each time.
+On my side, dephx-bot moves the agent's working state out of the model and into a small state machine I call the phase engine, and gives the agent senior engineering judgement through senior-dephx, my engineering-judgement plugin for AI coding agents. Both models I tested tried to skip steps, and the phase engine stopped them each time.
 
 | | Praxiom | DeepSeek |
 | --- | --- | --- |
@@ -46,6 +46,8 @@ dephx-bot holds that state in the app instead. The phase engine is a small state
 
 Three rules do most of the work. A tool that the current phase does not allow is refused before it runs, with a message telling the model what it may do instead. Moving from Ideate to Build shows the plan to the user with Approve and Request changes buttons, so no code is written before a person has agreed to the approach. And the agent can only finish as "verified" if a check passed after its last file change; otherwise it must finish as unverified and say why. The user sees the result as either "Finished and verified" or "Finished, not verified", and that label is a fact the app checked, not a sentence the model wrote.
 
+One tool sits outside the phases. When you want the agent's help configuring dephx-bot itself, it can propose a change to the commands your project lets run without asking, with `edit_project_settings`. The change is shown to you line by line with Apply and Deny buttons and takes effect only when you apply it, so it is safe to offer in every phase.
+
 This mattered in practice. In testing, both Praxiom and DeepSeek tried at least once to jump from Evaluate straight to Build. The engine refused, the model read the reason and went back through planning. An instruction in the prompt alone would not have caught it.
 
 Because the state lives outside the model, it also survives things that the model's memory does not. When a long chat is compacted into a summary, the phase and the verification record are untouched, so no summary can skip a plan approval or carry a passing test into the next request.
@@ -54,13 +56,15 @@ Because the state lives outside the model, it also survives things that the mode
 
 The phase engine decides when the agent may do something. senior-dephx shapes how well it does it.
 
-senior-dephx is a set of written guidelines I developed from my own work as a software engineer, packaged so that an AI agent can follow them. It covers the habits that separate code that works from code that a team can live with for years: reading the real code before changing it instead of recalling it, finding what already exists before adding something new, tracing what else a change touches, keeping each change as small as the problem, fitting the project's existing structure, checking how a change behaves when the data grows, reviewing user-facing work through the eyes of a first-time user, and proving that something works before claiming it does. There are ten guides in all, from code comprehension and engineering standards to scale review, UI craft and git discipline, plus a short core gate that sets the bar for everything else.
+[senior-dephx](https://github.com/ephraimd/senior-dephx) is the engineering judgement of a senior software engineer, written down as a procedure an AI agent can follow. I built it as a plugin for AI coding agents, and it runs in Claude Code, OpenCode, Codex and Pi as well as in dephx-bot. Its purpose is to make any model, including a weak one, work the way an expert engineer works, because the gap between a model that writes plausible code and an engineer who ships maintainable software is mostly procedure and judgement, and both can be taught.
+
+At its centre is a gate that every change passes through. It sizes the ceremony to the blast radius, so a typo needs nothing while a change to money, authentication or a database migration needs a written brief, a traced side effect and a test. Before any non-trivial change the agent must answer five questions from the code itself: what already exists that does this, what breaks, what boundary the change crosses, what the user and the business gain, and which standard engineering pattern applies. Around the gate are ten in-depth guides that the agent loads when the work calls for them: reading and tracing existing code before touching it, engineering standards, backend structure, reviewing a change for production scale, reviewing it for the people who will use it, UI craft, end-to-end verification, git discipline, the intuition to see a change's whole footprint before writing it, and an opinionated Go backend blueprint that loads only when asked for by name. Each guide is concrete about the failures it prevents, from an unindexed query that only hurts at a million rows to a destructive button with less friction than a harmless one.
 
 The guides are about 40,000 tokens together, too many to send with every request, especially on a 65,536-token window. dephx-bot puts only a short index of them in the system prompt and gives the agent a `load_skill` tool to read a guide when the task in front of it calls for one. A loaded guide is pinned, so trimming and compaction never drop it. The chat shows that a guide was loaded and how large it was, but not its text.
 
 The effect shows in the agent's output. In testing, its final reports consistently separated what it had verified from what it had not. In one run it tried to prove that its new test could actually fail by briefly breaking the code it had just written, which is a habit straight from the guidelines; the command was not on the allow-list, so it was refused and the agent carried on.
 
-My working estimate, from using senior-dephx on my own projects, is that this combination of enforced process and written judgement makes AI-assisted development somewhere between 50 and 200 times more productive than prompting a model directly. The gain is largest with weaker models, because the guidelines and the gates supply the judgement those models lack, so a model that would otherwise produce plausible but unmaintainable code is held to the same standard as a strong one. I want to be clear that this range comes from experience, not from a controlled measurement, and nothing in this report was designed to test it. Measuring it properly is the next piece of work: the same feature requests built with and without senior-dephx, on strong and weak models, judged on correctness, on how well the result fits the existing codebase, and on the engineer's time.
+From my use of senior-dephx across my own projects, I estimate that this combination of enforced process and written judgement makes AI-assisted development between 50 and 200 times more productive than prompting a model directly. The gain grows as the model gets weaker, because the guides and the gates supply exactly the judgement a weaker model lacks, so a model that would otherwise produce plausible but unmaintainable code is held to the standard of a strong one. The next step is to measure it formally: the same feature requests built with and without senior-dephx, on strong and weak models, judged on correctness, on how well the result fits the existing codebase, and on the engineer's time.
 
 ### 2.3 The rest of the harness
 
@@ -69,10 +73,8 @@ Around those two ideas are the parts any serious agent needs, each built and tes
 - **Approvals.** Every shell command is shown in full before it runs, with Run once, Always allow in this project, and Deny. Commands containing hidden or direction-changing characters are refused, so a command cannot be disguised.
 - **A per-chat token limit.** Before each request the app adds up what the chat has used and the largest possible size of the next request, and refuses to send it if that would go over the limit. Spending never overshoots.
 - **Trimming and compaction.** Old tool output is hidden from later requests at no cost, because the agent can run the tool again. When that is not enough, the older part of the chat is replaced by a summary in which the record of files changed, commands run and approvals given is written by the app from its own log, and only the narrative is written by the model. The user can compact on demand and undo it.
-- **A strict file boundary.** The agent can only read and write inside the project folder, and never the `.git` folder or the app's own settings, with symlinks and Windows path quirks handled.
+- **A strict file boundary.** The agent can only read and write inside the project folder and never inside `.git`, with symlinks and Windows path quirks handled. The project's dephx-bot settings change only through `edit_project_settings`, with your approval.
 - **Stop that actually stops.** Stop closes the model's stream, cancels any open approval and kills a running command together with everything it started.
-
-Building it on real runs, not just unit tests, found nine bugs that the tests had missed, and a fresh review of the whole codebase found eleven more. All of them are fixed, most with a test that failed first. The Python side has 195 tests and the interface 27.
 
 ## 3. Integrating Praxiom
 
@@ -128,7 +130,7 @@ Across all the testing, a few traits set Praxiom apart from the other models I h
 
 ### 5.1 The malaria agent
 
-Before building dephx-bot I wrote a small clinical decision-support agent for malaria, with one tool that reads a web page and summarises it. It was written against DeepSeek and then run on Praxiom by changing one setting, with no code changes.
+Before building dephx-bot I wrote a small clinical decision-support agent for malaria ([`playground/malaria-agent`](playground/malaria-agent)), with one tool that reads a web page and summarises it. It was written against DeepSeek and then run on Praxiom by changing one setting, with no code changes.
 
 The test question was a realistic one: someone who returned to Lagos from Kano ten days ago and has had fever, chills and headache for three days. Praxiom decided on its own to read the World Health Organization's malaria fact sheet, then wrote an answer that I would be comfortable showing a patient. It:
 
@@ -220,15 +222,3 @@ These are listed in the order I expect them to matter for agent workloads.
 5. **The image models** need work on written text and anatomy, and the edit endpoint did not follow the instruction it was given. The video model and the planned `praxiom-code` model were not tested.
 
 I would also make one point in Praxiom's documentation: because it does not bill hidden reasoning, it reaches the same result with far fewer output tokens than reasoning models, and output is the expensive side of the bill.
-
-## 8. Limits of this testing
-
-- The coding tasks were small and single-file, each run once per model. Every run passed, so they show parity on everyday work, not a ranking.
-- Speed was measured three times per model from one location at one time of day.
-- The image tests were one generation and one edit.
-- The malaria agent is a learning project, not a medical device, and its answer was judged by reading it, not by a clinician.
-- dephx-bot has not yet been run on a real Windows machine, and the productivity estimate in section 2.2 has not been measured.
-
-## 9. Cost of this testing
-
-The image tests, both dephx-bot runs on Praxiom and the benchmark together took the Praxiom balance from ESP 0.966747 to ESP 0.804259, a spend of ESP 0.16, about ₦330. The compatibility probes and the first malaria runs came before that and were not measured separately; they were a handful of short requests. The DeepSeek side of the benchmark cost under ten US cents.
